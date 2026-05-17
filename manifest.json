@@ -1,0 +1,28 @@
+{
+  "name": "GanaderíaApp",
+  "short_name": "Ganadería",
+  "description": "Gestión de ganadería: animales, contabilidad e informes",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f8faf9",
+  "theme_color": "#2d6a4f",
+  "lang": "es",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "categories": ["productivity", "utilities"],
+  "shortcuts": [
+    {
+      "name": "Nuevo animal",
+      "url": "./index.html#animales",
+      "description": "Añadir un nuevo animal al rebaño"
+    },
+    {
+      "name": "Finanzas",
+      "url": "./index.html#finanzas",
+      "description": "Ver ingresos y gastos"
+    }
+  ]
+}
