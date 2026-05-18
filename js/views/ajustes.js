@@ -97,12 +97,22 @@ export async function renderAjustes(container) {
       <div class="card">
         <div id="explot-list"></div>
         <div class="divider"></div>
-        <div class="form-group" style="display:flex;gap:10px;align-items:flex-end;">
-          <div style="flex:1">
-            <label class="form-label">Nueva explotación</label>
-            <input class="form-control" id="explot-nueva" placeholder="Ej: Finca Norte">
+        <div class="form-group">
+          <label class="form-label">Nueva explotación</label>
+          <input class="form-control" id="explot-nueva" placeholder="Ej: Finca Norte">
+        </div>
+        <div class="grid-2" style="gap:10px;">
+          <div class="form-group" style="margin:0;">
+            <label class="form-label">Tamaño <span class="text-muted" style="font-weight:normal;">(opcional)</span></label>
+            <input class="form-control" id="explot-tamano" placeholder="Ej: 150 ha">
           </div>
-          <button class="btn btn-primary" id="explot-add">Añadir</button>
+          <div class="form-group" style="margin:0;">
+            <label class="form-label">Renta anual <span class="text-muted" style="font-weight:normal;">(opcional, €)</span></label>
+            <input type="number" inputmode="decimal" class="form-control" id="explot-renta" min="0" step="0.01" placeholder="0.00">
+          </div>
+        </div>
+        <div style="margin-top:12px;">
+          <button class="btn btn-primary" id="explot-add">Añadir explotación</button>
         </div>
       </div>
     </div>
@@ -175,14 +185,70 @@ export async function renderAjustes(container) {
   });
   renderCats();
 
+  const openEditExplot = (explot) => {
+    const { overlay } = openModal({
+      title: `Editar: ${explot.nombre}`,
+      bodyHtml: `
+        <div class="form-group">
+          <label class="form-label">Nombre *</label>
+          <input class="form-control" id="ee-nombre" value="${escapeHtml(explot.nombre)}">
+        </div>
+        <div class="grid-2" style="gap:10px;">
+          <div class="form-group" style="margin:0;">
+            <label class="form-label">Tamaño <span class="text-muted" style="font-weight:normal;">(opcional)</span></label>
+            <input class="form-control" id="ee-tamano" value="${escapeHtml(explot.tamano ?? '')}" placeholder="Ej: 150 ha">
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label class="form-label">Renta anual <span class="text-muted" style="font-weight:normal;">(€)</span></label>
+            <input type="number" inputmode="decimal" class="form-control" id="ee-renta" min="0" step="0.01" value="${explot.rentaAnual ?? ''}" placeholder="0.00">
+          </div>
+        </div>`,
+      footerHtml: `
+        <button class="btn btn-secondary" id="ee-cancel">Cancelar</button>
+        <button class="btn btn-primary" id="ee-save">Guardar</button>`
+    });
+    overlay.querySelector('#ee-cancel').addEventListener('click', () => overlay.remove());
+    overlay.querySelector('#ee-save').addEventListener('click', async () => {
+      const nombre = overlay.querySelector('#ee-nombre').value.trim();
+      if (!nombre) { showToast('El nombre es obligatorio', 'error'); return; }
+      const tamano = overlay.querySelector('#ee-tamano').value.trim() || null;
+      const rentaVal = overlay.querySelector('#ee-renta').value;
+      const rentaAnual = rentaVal !== '' && rentaVal !== null ? Number(rentaVal) : null;
+      const idx = explotaciones.findIndex(e => e.id === explot.id);
+      const updated = { ...explot, nombre, tamano, rentaAnual };
+      await put('explotaciones', updated);
+      if (idx !== -1) explotaciones[idx] = updated;
+      overlay.remove();
+      renderExplots();
+      showToast('Explotación actualizada');
+    });
+  };
+
   const renderExplots = () => {
     const list = container.querySelector('#explot-list');
     list.innerHTML = explotaciones.length === 0
       ? `<div class="empty-state" style="padding:20px;"><p>Sin explotaciones creadas. Añade una para poder asignar animales a cada una.</p></div>`
-      : explotaciones.map(e => `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--color-border);">
-          <span style="flex:1">${escapeHtml(e.nombre)}</span>
-          <button class="btn btn-sm btn-danger" data-explodel="${e.id}">🗑</button>
-        </div>`).join('');
+      : explotaciones.map(e => {
+          const extras = [
+            e.tamano ? `<span class="text-muted text-small">📐 ${escapeHtml(e.tamano)}</span>` : '',
+            e.rentaAnual != null ? `<span class="text-muted text-small">💶 ${formatEur(e.rentaAnual)}/año</span>` : '',
+          ].filter(Boolean).join(' &nbsp;');
+          return `<div style="display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--color-border);">
+            <div style="flex:1;min-width:0;">
+              <div style="font-weight:600;">${escapeHtml(e.nombre)}</div>
+              ${extras ? `<div style="margin-top:2px;">${extras}</div>` : ''}
+            </div>
+            <button class="btn btn-sm btn-secondary" data-explodit="${e.id}" title="Editar">✏️</button>
+            <button class="btn btn-sm btn-danger" data-explodel="${e.id}" title="Eliminar">🗑</button>
+          </div>`;
+        }).join('');
+    list.querySelectorAll('[data-explodit]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const explot = explotaciones.find(e => e.id === btn.dataset.explodit);
+        if (explot) openEditExplot(explot);
+      });
+    });
+
     list.querySelectorAll('[data-explodel]').forEach(btn => {
       btn.addEventListener('click', async () => {
         const id = btn.dataset.explodel;
@@ -293,10 +359,15 @@ export async function renderAjustes(container) {
   container.querySelector('#explot-add').addEventListener('click', async () => {
     const nombre = container.querySelector('#explot-nueva').value.trim();
     if (!nombre) { showToast('Escribe un nombre', 'error'); return; }
-    const nueva = { id: uid(), nombre };
+    const tamano = container.querySelector('#explot-tamano').value.trim() || null;
+    const rentaVal = container.querySelector('#explot-renta').value;
+    const rentaAnual = rentaVal !== '' ? Number(rentaVal) : null;
+    const nueva = { id: uid(), nombre, tamano, rentaAnual };
     await put('explotaciones', nueva);
     explotaciones.push(nueva);
     container.querySelector('#explot-nueva').value = '';
+    container.querySelector('#explot-tamano').value = '';
+    container.querySelector('#explot-renta').value = '';
     renderExplots();
     showToast('Explotación añadida');
   });
