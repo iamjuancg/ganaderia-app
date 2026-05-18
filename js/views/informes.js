@@ -104,6 +104,13 @@ function buildDropdown(container, wrapperId, label, items, selected, onchange) {
     });
 
     wrapper.appendChild(panel);
+
+    // Evitar que el panel se salga por la derecha
+    const pr = panel.getBoundingClientRect();
+    if (pr.right > window.innerWidth - 8) {
+      panel.style.left = 'auto';
+      panel.style.right = '0';
+    }
   });
 }
 
