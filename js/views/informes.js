@@ -67,14 +67,13 @@ function buildDropdown(container, wrapperId, label, items, selected, onchange) {
   const btnLabel = count > 0 ? `${label} <span class="fi-dd-badge">${count}</span>` : label;
 
   wrapper.innerHTML = `
-    <button class="btn btn-secondary fi-dropdown-btn${count > 0 ? ' fi-dd-active' : ''}" style="position:relative;">
+    <button class="btn btn-secondary fi-dropdown-btn${count > 0 ? ' fi-dd-active' : ''}">
       ${btnLabel} <span style="margin-left:4px;font-size:0.7rem;">▼</span>
     </button>`;
 
   const btn = wrapper.querySelector('button');
   btn.addEventListener('click', e => {
     e.stopPropagation();
-    // Close other dropdowns
     document.querySelectorAll('.fi-dropdown-panel').forEach(p => {
       if (!wrapper.contains(p)) p.remove();
     });
@@ -86,26 +85,40 @@ function buildDropdown(container, wrapperId, label, items, selected, onchange) {
     if (existingPanel) { existingPanel.remove(); btn.classList.remove('open'); return; }
 
     btn.classList.add('open');
+
+    // Estado pendiente — no modifica `selected` hasta aplicar
+    const pending = new Set(selected);
+
     const panel = document.createElement('div');
     panel.className = 'fi-dropdown-panel';
     panel.innerHTML = items.map(item => `
-      <label class="fi-dd-item${selected.has(item.id) ? ' fi-dd-checked' : ''}">
-        <input type="checkbox" value="${item.id}" ${selected.has(item.id) ? 'checked' : ''}>
+      <label class="fi-dd-item${pending.has(item.id) ? ' fi-dd-checked' : ''}">
+        <input type="checkbox" value="${item.id}" ${pending.has(item.id) ? 'checked' : ''}>
         <span>${escapeHtml(item.nombre)}</span>
-      </label>`).join('');
+      </label>`).join('') +
+      `<div class="fi-dd-footer">
+        <button class="btn btn-sm btn-primary fi-dd-apply">Aplicar filtros</button>
+      </div>`;
 
     panel.querySelectorAll('input[type=checkbox]').forEach(cb => {
       cb.addEventListener('change', () => {
         cb.closest('label').classList.toggle('fi-dd-checked', cb.checked);
-        if (cb.checked) selected.add(cb.value);
-        else selected.delete(cb.value);
-        onchange();
+        if (cb.checked) pending.add(cb.value);
+        else pending.delete(cb.value);
       });
+    });
+
+    panel.querySelector('.fi-dd-apply').addEventListener('click', e => {
+      e.stopPropagation();
+      selected.clear();
+      pending.forEach(v => selected.add(v));
+      panel.remove();
+      btn.classList.remove('open');
+      onchange();
     });
 
     wrapper.appendChild(panel);
 
-    // Evitar que el panel se salga por la derecha
     const pr = panel.getBoundingClientRect();
     if (pr.right > window.innerWidth - 8) {
       panel.style.left = 'auto';
