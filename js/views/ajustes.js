@@ -185,13 +185,34 @@ export async function renderAjustes(container) {
         </div>`).join('');
     list.querySelectorAll('[data-explodel]').forEach(btn => {
       btn.addEventListener('click', async () => {
-        const idx = explotaciones.findIndex(e => e.id === btn.dataset.explodel);
-        if (idx !== -1) {
-          await remove('explotaciones', explotaciones[idx].id);
+        const id = btn.dataset.explodel;
+        const idx = explotaciones.findIndex(e => e.id === id);
+        if (idx === -1) return;
+
+        const [animales, transacciones] = await Promise.all([getAll('animales'), getAll('transacciones')]);
+        const nAnimales = animales.filter(a => a.explotacionId === id).length;
+        const nTx = transacciones.filter(t => t.explotacionId === id).length;
+
+        const detalle = [
+          nAnimales > 0 ? `${nAnimales} animal${nAnimales !== 1 ? 'es' : ''}` : '',
+          nTx > 0 ? `${nTx} transacción${nTx !== 1 ? 'es' : ''}` : '',
+        ].filter(Boolean).join(' y ');
+
+        const msg = detalle
+          ? `¿Eliminar la explotación <strong>${escapeHtml(explotaciones[idx].nombre)}</strong>?<br><br>${detalle} quedarán sin explotación asignada (no se borran).`
+          : `¿Eliminar la explotación <strong>${escapeHtml(explotaciones[idx].nombre)}</strong>?`;
+
+        confirmModal(msg, async () => {
+          // Desasignar animales y transacciones afectados
+          await Promise.all([
+            ...animales.filter(a => a.explotacionId === id).map(a => put('animales', { ...a, explotacionId: null })),
+            ...transacciones.filter(t => t.explotacionId === id).map(t => put('transacciones', { ...t, explotacionId: null })),
+          ]);
+          await remove('explotaciones', id);
           explotaciones.splice(idx, 1);
           renderExplots();
           showToast('Explotación eliminada');
-        }
+        });
       });
     });
   };
