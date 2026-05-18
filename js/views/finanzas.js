@@ -116,7 +116,7 @@ async function loadFinanzas(container) {
   // Filtro titular: para listas, incluir transacciones del titular + las compartidas (titularId === null)
   const titularMatch = (t) => {
     if (activeTitularId === 'all') return true;
-    return t.titularId === activeTitularId || t.titularId === null;
+    return t.titularId === activeTitularId || !t.titularId;
   };
   // Importe efectivo: para titular específico, las compartidas se dividen entre numTitulares
   const efectiveImporte = (t) => {

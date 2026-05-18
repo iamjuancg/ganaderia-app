@@ -31,7 +31,7 @@ export async function renderDashboard(container) {
 
   const titularMatch = (t) => {
     if (activeTitularId === 'all') return true;
-    return t.titularId === activeTitularId || t.titularId === null;
+    return t.titularId === activeTitularId || !t.titularId;
   };
   const efectiveImporte = (t) => {
     if (activeTitularId === 'all' || t.titularId === activeTitularId || numTitulares === 0) return t.importe;
@@ -142,7 +142,7 @@ function buildMonthData(transacciones, activeTitularId, numTitulares) {
   }
   const titularMatch = (t) => {
     if (activeTitularId === 'all') return true;
-    return t.titularId === activeTitularId || t.titularId === null;
+    return t.titularId === activeTitularId || !t.titularId;
   };
   const efectiveImporte = (t) => {
     if (activeTitularId === 'all' || t.titularId === activeTitularId || numTitulares === 0) return t.importe;
