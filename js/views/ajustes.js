@@ -9,6 +9,7 @@ import {
   gdriveGetLastSync, gdriveSignIn, gdriveSignInSilent, gdriveSignOut,
   gdriveUpload, gdriveDownload, gdriveGetFileInfo, gdriveInit
 } from '../utils/gdrive.js';
+import { APP_VERSION } from '../version.js';
 
 function renderDriveSection() {
   if (!gdriveIsConfigured()) {
@@ -109,6 +110,11 @@ export async function renderAjustes(container) {
     <!-- Google Drive -->
     <div class="settings-section" id="drive-section">
       ${renderDriveSection()}
+    </div>
+
+    <!-- Versión -->
+    <div class="settings-section">
+      <p class="text-muted text-small" style="text-align:center;">Versión: <code>${APP_VERSION}</code></p>
     </div>
 
     <!-- Zona peligrosa -->
