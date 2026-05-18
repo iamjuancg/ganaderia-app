@@ -46,16 +46,17 @@ export function eventoLabel(tipo) {
 export const CATEGORIAS_DEFECTO = [
   { id: 'sys-pac', nombre: 'PAC / Subvenciones', tipo: 'ingreso', sistema: true },
   { id: 'sys-venta-animales', nombre: 'Venta de animales', tipo: 'ingreso', sistema: true },
-  { id: 'sys-venta-leche', nombre: 'Venta de leche / productos', tipo: 'ingreso', sistema: true },
   { id: 'sys-otros-ingresos', nombre: 'Otros ingresos', tipo: 'ingreso', sistema: true },
-  { id: 'sys-pienso', nombre: 'Pienso y alimentación', tipo: 'gasto', sistema: true },
-  { id: 'sys-vet', nombre: 'Veterinario y medicamentos', tipo: 'gasto', sistema: true },
-  { id: 'sys-compra-animales', nombre: 'Compra de animales', tipo: 'gasto', sistema: true },
-  { id: 'sys-maquinaria', nombre: 'Maquinaria y mantenimiento', tipo: 'gasto', sistema: true },
-  { id: 'sys-instalaciones', nombre: 'Instalaciones y terrenos', tipo: 'gasto', sistema: true },
-  { id: 'sys-seguros', nombre: 'Seguros', tipo: 'gasto', sistema: true },
   { id: 'sys-combustible', nombre: 'Combustible y transporte', tipo: 'gasto', sistema: true },
+  { id: 'sys-compra-animales', nombre: 'Compra de animales', tipo: 'gasto', sistema: true },
+  { id: 'sys-instalaciones', nombre: 'Instalaciones y terrenos', tipo: 'gasto', sistema: true },
+  { id: 'sys-maquinaria', nombre: 'Maquinaria y mantenimiento', tipo: 'gasto', sistema: true },
+  { id: 'sys-nominas', nombre: 'Nóminas', tipo: 'gasto', sistema: true },
   { id: 'sys-otros-gastos', nombre: 'Otros gastos', tipo: 'gasto', sistema: true },
+  { id: 'sys-pienso', nombre: 'Pienso y alimentación', tipo: 'gasto', sistema: true },
+  { id: 'sys-renta-terreno', nombre: 'Renta Terreno', tipo: 'gasto', sistema: true },
+  { id: 'sys-seguros', nombre: 'Seguros', tipo: 'gasto', sistema: true },
+  { id: 'sys-vet', nombre: 'Veterinario y medicamentos', tipo: 'gasto', sistema: true },
 ];
 
 export function downloadFile(content, filename, mimeType) {

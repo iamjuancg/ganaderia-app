@@ -81,13 +81,7 @@ export async function renderAjustes(container) {
         </div>
         <div id="cat-list"></div>
         <div class="divider"></div>
-        <div class="form-group" style="display:flex;gap:10px;align-items:flex-end;">
-          <div style="flex:1">
-            <label class="form-label">Nueva categoría</label>
-            <input class="form-control" id="cat-nueva" placeholder="Nombre de la categoría">
-          </div>
-          <button class="btn btn-primary" id="cat-add">Añadir</button>
-        </div>
+        <button class="btn btn-primary" id="cat-add-btn" style="margin-top:4px;">+ Nueva categoría</button>
       </div>
     </div>
 
@@ -156,13 +150,46 @@ export async function renderAjustes(container) {
   let catTab = 'ingreso';
   const renderCats = () => {
     const list = container.querySelector('#cat-list');
-    const cats = categorias.filter(c => c.tipo === catTab);
+    const cats = categorias.filter(c => c.tipo === catTab).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
     list.innerHTML = cats.length === 0
       ? `<div class="empty-state" style="padding:20px;"><p>Sin categorías de ${catTab}.</p></div>`
       : cats.map(c => `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--color-border);">
           <span style="flex:1">${escapeHtml(c.nombre)}${c.sistema ? ' <span class="badge" style="font-size:0.7rem">sistema</span>' : ''}</span>
-          ${!c.sistema ? `<button class="btn btn-sm btn-danger" data-catdel="${c.id}">🗑</button>` : ''}
+          ${!c.sistema ? `
+            <button class="btn btn-sm btn-secondary" data-catedit="${c.id}" title="Editar">✏️</button>
+            <button class="btn btn-sm btn-danger" data-catdel="${c.id}" title="Eliminar">🗑</button>` : ''}
         </div>`).join('');
+
+    list.querySelectorAll('[data-catedit]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const cat = categorias.find(c => c.id === btn.dataset.catedit);
+        if (!cat) return;
+        const { overlay } = openModal({
+          title: 'Editar categoría',
+          bodyHtml: `
+            <div class="form-group">
+              <label class="form-label">Nombre *</label>
+              <input class="form-control" id="ce-nombre" value="${escapeHtml(cat.nombre)}">
+            </div>`,
+          footerHtml: `
+            <button class="btn btn-secondary" id="ce-cancel">Cancelar</button>
+            <button class="btn btn-primary" id="ce-save">Guardar</button>`
+        });
+        overlay.querySelector('#ce-cancel').addEventListener('click', () => overlay.remove());
+        overlay.querySelector('#ce-save').addEventListener('click', async () => {
+          const nombre = overlay.querySelector('#ce-nombre').value.trim();
+          if (!nombre) { showToast('El nombre es obligatorio', 'error'); return; }
+          const idx = categorias.findIndex(c => c.id === cat.id);
+          const updated = { ...cat, nombre };
+          await put('categorias', updated);
+          if (idx !== -1) categorias[idx] = updated;
+          overlay.remove();
+          renderCats();
+          showToast('Categoría actualizada');
+        });
+      });
+    });
+
     list.querySelectorAll('[data-catdel]').forEach(btn => {
       btn.addEventListener('click', async () => {
         const idx = categorias.findIndex(c => c.id === btn.dataset.catdel);
@@ -390,15 +417,32 @@ export async function renderAjustes(container) {
     showToast('Nombre guardado');
   });
 
-  container.querySelector('#cat-add').addEventListener('click', async () => {
-    const nombre = container.querySelector('#cat-nueva').value.trim();
-    if (!nombre) { showToast('Escribe un nombre', 'error'); return; }
-    const nueva = { id: uid(), nombre, tipo: catTab, sistema: false };
-    await put('categorias', nueva);
-    categorias.push(nueva);
-    container.querySelector('#cat-nueva').value = '';
-    renderCats();
-    showToast('Categoría añadida');
+  container.querySelector('#cat-add-btn').addEventListener('click', () => {
+    const tipo = catTab;
+    const { overlay } = openModal({
+      title: `Nueva categoría de ${tipo === 'ingreso' ? 'ingreso' : 'gasto'}`,
+      bodyHtml: `
+        <div class="form-group">
+          <label class="form-label">Nombre *</label>
+          <input class="form-control" id="cn-nombre" placeholder="Nombre de la categoría">
+        </div>`,
+      footerHtml: `
+        <button class="btn btn-secondary" id="cn-cancel">Cancelar</button>
+        <button class="btn btn-primary" id="cn-save">Añadir</button>`
+    });
+    const input = overlay.querySelector('#cn-nombre');
+    input.focus();
+    overlay.querySelector('#cn-cancel').addEventListener('click', () => overlay.remove());
+    overlay.querySelector('#cn-save').addEventListener('click', async () => {
+      const nombre = input.value.trim();
+      if (!nombre) { showToast('El nombre es obligatorio', 'error'); return; }
+      const nueva = { id: uid(), nombre, tipo, sistema: false };
+      await put('categorias', nueva);
+      categorias.push(nueva);
+      overlay.remove();
+      renderCats();
+      showToast('Categoría añadida');
+    });
   });
 
   // Exportar JSON
