@@ -295,7 +295,8 @@ export async function renderAjustes(container) {
           const result = await gdriveDownload();
           if (!result) { showToast('No hay backup en Drive', 'error'); return; }
           await importAll(result.data);
-          showToast('Datos descargados e importados desde Drive');
+          const nAnimales = result.data.animales?.length ?? 0;
+          showToast(`Drive: ${nAnimales} animales descargados`);
           refreshDriveSection();
         } catch (e) {
           showToast('Error al descargar de Drive', 'error');
