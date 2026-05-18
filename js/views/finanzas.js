@@ -4,12 +4,11 @@ import { formatDate, todayISO, getYear, currentYear } from '../utils/date.js';
 import { showToast } from '../utils/toast.js';
 import { openModal, confirmModal } from '../utils/modal.js';
 
-let activeTab = 'ingreso', filterYear = currentYear(), filterCat = '';
+let activeTab = 'ingreso', filterYear = currentYear(), filterCat = '', filterExplotacion = '';
 
 export async function renderFinanzas(container) {
-  const [categorias] = await Promise.all([getAll('categorias')]);
-
-  const years = await getAvailableYears();
+  const [categorias, years] = await Promise.all([getAll('categorias'), getAvailableYears()]);
+  const explotaciones = await getAll('explotaciones');
 
   container.innerHTML = `
     <div class="page-header">
@@ -29,6 +28,11 @@ export async function renderFinanzas(container) {
       <select class="form-control" id="fi-cat">
         <option value="">Todas las categorías</option>
       </select>
+      ${explotaciones.length > 0 ? `
+      <select class="form-control" id="fi-explotacion">
+        <option value="">Todas las explotaciones</option>
+        ${explotaciones.map(e => `<option value="${e.id}" ${filterExplotacion === e.id ? 'selected' : ''}>${escapeHtml(e.nombre)}</option>`).join('')}
+      </select>` : ''}
     </div>
 
     <div class="tabs">
@@ -54,6 +58,7 @@ export async function renderFinanzas(container) {
   });
   container.querySelector('#fi-year').addEventListener('change', e => { filterYear = Number(e.target.value); refresh(); });
   container.querySelector('#fi-cat').addEventListener('change', e => { filterCat = e.target.value; refresh(); });
+  container.querySelector('#fi-explotacion')?.addEventListener('change', e => { filterExplotacion = e.target.value; refresh(); });
 
   await loadFinanzas(container);
 }
@@ -66,8 +71,12 @@ async function getAvailableYears() {
 }
 
 async function loadFinanzas(container) {
-  const [transacciones, categorias] = await Promise.all([getAll('transacciones'), getAll('categorias')]);
+  const [transacciones, categorias, explotaciones] = await Promise.all([
+    getAll('transacciones'), getAll('categorias'), getAll('explotaciones')
+  ]);
   const catMap = Object.fromEntries(categorias.map(c => [c.id, c]));
+  const explotMap = Object.fromEntries(explotaciones.map(e => [e.id, e.nombre]));
+  const showExplot = explotaciones.length > 0;
 
   // Rellenar selector categorías según tab
   const catSel = container.querySelector('#fi-cat');
@@ -80,9 +89,10 @@ async function loadFinanzas(container) {
 
   let filtered = transacciones.filter(t => t.tipo === activeTab && getYear(t.fecha) === filterYear);
   if (filterCat) filtered = filtered.filter(t => t.categoriaId === filterCat);
+  if (filterExplotacion) filtered = filtered.filter(t => t.explotacionId === filterExplotacion);
   filtered.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
 
-  // Summary
+  // Summary (always global for the year, regardless of explotación filter)
   const allYear = transacciones.filter(t => getYear(t.fecha) === filterYear);
   const ingresos = allYear.filter(t => t.tipo === 'ingreso').reduce((s, t) => s + t.importe, 0);
   const gastos = allYear.filter(t => t.tipo === 'gasto').reduce((s, t) => s + t.importe, 0);
@@ -115,11 +125,12 @@ async function loadFinanzas(container) {
     </div>
     <div class="table-container"><table>
       <thead><tr>
-        <th>Fecha</th><th>Categoría</th><th>Descripción</th><th>Referencia</th><th style="text-align:right">Importe</th><th>Acciones</th>
+        <th>Fecha</th><th>Categoría</th>${showExplot ? '<th>Explotación</th>' : ''}<th>Descripción</th><th>Referencia</th><th style="text-align:right">Importe</th><th>Acciones</th>
       </tr></thead>
       <tbody>${filtered.map(t => `<tr>
         <td>${formatDate(t.fecha)}</td>
         <td>${escapeHtml(catMap[t.categoriaId]?.nombre) || '—'}</td>
+        ${showExplot ? `<td>${t.explotacionId ? escapeHtml(explotMap[t.explotacionId] ?? '—') : '<span class="text-muted">—</span>'}</td>` : ''}
         <td>${escapeHtml(t.descripcion) || '—'}</td>
         <td>${escapeHtml(t.referencia) || '—'}</td>
         <td style="text-align:right;font-weight:600;color:${activeTab === 'ingreso' ? 'var(--color-primary)' : 'var(--color-danger)'}">${formatEur(t.importe)}</td>
@@ -151,7 +162,7 @@ async function loadFinanzas(container) {
 }
 
 export async function renderTransaccionForm(slot, tipo, tx, onSave) {
-  const categorias = await getAll('categorias');
+  const [categorias, explotaciones] = await Promise.all([getAll('categorias'), getAll('explotaciones')]);
   const cats = categorias.filter(c => c.tipo === tipo);
 
   slot.innerHTML = `
@@ -171,6 +182,14 @@ export async function renderTransaccionForm(slot, tipo, tx, onSave) {
           ${cats.map(c => `<option value="${c.id}" ${tx?.categoriaId === c.id ? 'selected' : ''}>${escapeHtml(c.nombre)}</option>`).join('')}
         </select>
       </div>
+      ${explotaciones.length > 0 ? `
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">Explotación</label>
+        <select class="form-control" id="tf-explotacion">
+          <option value="">— Sin asignar —</option>
+          ${explotaciones.map(e => `<option value="${e.id}" ${tx?.explotacionId === e.id ? 'selected' : ''}>${escapeHtml(e.nombre)}</option>`).join('')}
+        </select>
+      </div>` : ''}
     </div>
     <div class="form-group">
       <label class="form-label">Descripción</label>
@@ -198,6 +217,7 @@ export async function renderTransaccionForm(slot, tipo, tx, onSave) {
       importe,
       fecha: new Date(fecha).toISOString(),
       categoriaId,
+      explotacionId: slot.querySelector('#tf-explotacion')?.value || null,
       descripcion: slot.querySelector('#tf-desc').value.trim() || null,
       referencia: slot.querySelector('#tf-ref').value.trim() || null,
       createdAt: tx?.createdAt ?? new Date().toISOString(),

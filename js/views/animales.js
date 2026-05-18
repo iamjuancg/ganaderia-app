@@ -6,9 +6,12 @@ import { openModal, confirmModal } from '../utils/modal.js';
 import { renderEventoForm } from './eventos.js';
 
 let sortField = 'crotal', sortDir = 1;
-let filterEspecie = '', filterStatus = 'activo', filterSearch = '';
+let filterEspecie = '', filterStatus = 'activo', filterSearch = '', filterExplotacion = '';
+let _explotaciones = [];
 
 export async function renderAnimales(container) {
+  _explotaciones = await getAll('explotaciones');
+
   container.innerHTML = `
     <div class="page-header">
       <h1 class="page-title">Animales</h1>
@@ -27,6 +30,11 @@ export async function renderAnimales(container) {
         <option value="vendido" ${filterStatus === 'vendido' ? 'selected' : ''}>Vendidos</option>
         <option value="muerto" ${filterStatus === 'muerto' ? 'selected' : ''}>Muertos</option>
       </select>
+      ${_explotaciones.length > 0 ? `
+      <select class="form-control" id="filter-explotacion">
+        <option value="">Todas las explotaciones</option>
+        ${_explotaciones.map(e => `<option value="${e.id}" ${filterExplotacion === e.id ? 'selected' : ''}>${escapeHtml(e.nombre)}</option>`).join('')}
+      </select>` : ''}
     </div>
 
     <div id="animales-list"></div>`;
@@ -41,6 +49,7 @@ export async function renderAnimales(container) {
   container.querySelector('#search-animal').addEventListener('input', e => { filterSearch = e.target.value; refresh(); });
   container.querySelector('#filter-especie').addEventListener('change', e => { filterEspecie = e.target.value; refresh(); });
   container.querySelector('#filter-status').addEventListener('change', e => { filterStatus = e.target.value; refresh(); });
+  container.querySelector('#filter-explotacion')?.addEventListener('change', e => { filterExplotacion = e.target.value; refresh(); });
 
   await loadAnimales(container);
 }
@@ -53,6 +62,7 @@ async function loadAnimales(container) {
     const q = filterSearch.toLowerCase();
     animales = animales.filter(a => a.crotal?.toLowerCase().includes(q) || a.nombre?.toLowerCase().includes(q));
   }
+  if (filterExplotacion) animales = animales.filter(a => a.explotacionId === filterExplotacion);
   animales.sort((a, b) => {
     const va = a[sortField] ?? ''; const vb = b[sortField] ?? '';
     return String(va).localeCompare(String(vb)) * sortDir;
@@ -70,17 +80,21 @@ async function loadAnimales(container) {
     return;
   }
 
+  const explotMap = Object.fromEntries(_explotaciones.map(e => [e.id, e.nombre]));
+  const showExplot = _explotaciones.length > 0;
+
   const isMobile = window.innerWidth < 768;
   if (isMobile) {
-    list.innerHTML = `<div class="animal-cards">${animales.map(a => animalCard(a)).join('')}</div>`;
+    list.innerHTML = `<div class="animal-cards">${animales.map(a => animalCard(a, explotMap, showExplot)).join('')}</div>`;
   } else {
     list.innerHTML = `<div class="table-container"><table>
       <thead><tr>
         ${['crotal','nombre','especie','raza','sexo','status','fechaNacimiento','currentWeight'].map(f => `
           <th data-field="${f}" class="${sortField === f ? 'sorted' : ''}">${colLabel(f)} ${sortField === f ? (sortDir === 1 ? '▲' : '▼') : ''}</th>`).join('')}
+        ${showExplot ? '<th>Explotación</th>' : ''}
         <th>Acciones</th>
       </tr></thead>
-      <tbody>${animales.map(a => animalRow(a)).join('')}</tbody>
+      <tbody>${animales.map(a => animalRow(a, explotMap, showExplot)).join('')}</tbody>
     </table></div>`;
 
     list.querySelectorAll('th[data-field]').forEach(th => {
@@ -122,14 +136,18 @@ async function loadAnimales(container) {
   });
 }
 
-function animalCard(a) {
+function animalCard(a, explotMap, showExplot) {
+  const explotNombre = showExplot && a.explotacionId ? explotMap[a.explotacionId] : null;
   return `<div class="animal-card">
     <div class="animal-card-header">
       <div>
         <div class="animal-card-crotal">${escapeHtml(a.crotal)}</div>
         ${a.nombre ? `<div class="animal-card-name">${escapeHtml(a.nombre)}</div>` : ''}
       </div>
-      <span class="badge badge-${a.status}">${a.status}</span>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+        <span class="badge badge-${a.status}">${a.status}</span>
+        ${explotNombre ? `<span class="badge" style="background:var(--color-border);color:var(--color-text-muted);font-size:0.7rem;">${escapeHtml(explotNombre)}</span>` : ''}
+      </div>
     </div>
     <div class="animal-card-row">
       <div class="animal-card-field"><span>Especie </span>${escapeHtml(a.especie)}</div>
@@ -146,7 +164,8 @@ function animalCard(a) {
   </div>`;
 }
 
-function animalRow(a) {
+function animalRow(a, explotMap, showExplot) {
+  const explotNombre = showExplot && a.explotacionId ? explotMap[a.explotacionId] : null;
   return `<tr>
     <td><strong>${escapeHtml(a.crotal)}</strong></td>
     <td>${escapeHtml(a.nombre) || '—'}</td>
@@ -156,6 +175,7 @@ function animalRow(a) {
     <td><span class="badge badge-${a.status}">${a.status}</span></td>
     <td>${formatDate(a.fechaNacimiento)}</td>
     <td>${a.currentWeight ? a.currentWeight + ' kg' : '—'}</td>
+    ${showExplot ? `<td>${explotNombre ? escapeHtml(explotNombre) : '<span class="text-muted">—</span>'}</td>` : ''}
     <td class="td-actions">
       <button class="btn btn-sm btn-ghost" data-action="detail" data-id="${a.id}">Ficha</button>
       <button class="btn btn-sm btn-secondary" data-action="evento" data-id="${a.id}">+ Evento</button>
@@ -176,6 +196,7 @@ async function openDetalle(id, container) {
   if (!a) return;
   const evAnimal = eventos.filter(e => e.animalId === id).sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
   const madre = a.madreId ? animales.find(x => x.id === a.madreId) : null;
+  const explotNombre = a.explotacionId ? _explotaciones.find(e => e.id === a.explotacionId)?.nombre : null;
 
   const { overlay } = openModal({
     title: `Ficha: ${a.crotal}${a.nombre ? ' — ' + a.nombre : ''}`,
@@ -190,6 +211,7 @@ async function openDetalle(id, container) {
         ${a.currentWeight ? `<div class="form-group"><div class="form-label">Peso actual</div><div>${a.currentWeight} kg (${formatDate(a.weightDate)})</div></div>` : ''}
         ${madre ? `<div class="form-group"><div class="form-label">Madre</div><div>${escapeHtml(madre.crotal)}</div></div>` : ''}
         ${a.origin ? `<div class="form-group"><div class="form-label">Origen</div><div>${a.origin}</div></div>` : ''}
+        ${explotNombre ? `<div class="form-group"><div class="form-label">Explotación</div><div>${escapeHtml(explotNombre)}</div></div>` : ''}
         ${a.notas ? `<div class="form-group" style="grid-column:1/-1"><div class="form-label">Notas</div><div>${escapeHtml(a.notas)}</div></div>` : ''}
       </div>
       <div class="divider"></div>
@@ -229,7 +251,7 @@ async function openDetalle(id, container) {
 }
 
 export async function renderAnimalForm(slot, animal, onSave) {
-  const allAnimales = await getAll('animales');
+  const [allAnimales, explotaciones] = await Promise.all([getAll('animales'), getAll('explotaciones')]);
   const hembras = allAnimales.filter(a => a.sexo === 'hembra' && a.id !== animal?.id);
 
   slot.innerHTML = `
@@ -286,6 +308,14 @@ export async function renderAnimalForm(slot, animal, onSave) {
           <option value="compra" ${animal?.origin === 'compra' ? 'selected' : ''}>Compra</option>
         </select>
       </div>
+      ${explotaciones.length > 0 ? `
+      <div class="form-group">
+        <label class="form-label">Explotación</label>
+        <select class="form-control" id="af-explotacion">
+          <option value="">— Sin asignar —</option>
+          ${explotaciones.map(e => `<option value="${e.id}" ${animal?.explotacionId === e.id ? 'selected' : ''}>${escapeHtml(e.nombre)}</option>`).join('')}
+        </select>
+      </div>` : ''}
     </div>
     <div class="form-group">
       <label class="form-label">Notas</label>
@@ -316,6 +346,7 @@ export async function renderAnimalForm(slot, animal, onSave) {
       madreId: slot.querySelector('#af-madre').value || null,
       origin: slot.querySelector('#af-origin').value || null,
       notas: slot.querySelector('#af-notas').value.trim() || null,
+      explotacionId: slot.querySelector('#af-explotacion')?.value || null,
       currentWeight: animal?.currentWeight ?? null,
       weightDate: animal?.weightDate ?? null,
       createdAt: animal?.createdAt ?? now,

@@ -54,7 +54,7 @@ function renderDriveSection() {
 
 export async function renderAjustes(container) {
   const explotacion = await getSetting('explotacion_nombre') ?? '';
-  const categorias = await getAll('categorias');
+  const [categorias, explotaciones] = await Promise.all([getAll('categorias'), getAll('explotaciones')]);
 
   container.innerHTML = `
     <div class="page-header"><h1 class="page-title">Ajustes</h1></div>
@@ -87,6 +87,22 @@ export async function renderAjustes(container) {
             <input class="form-control" id="cat-nueva" placeholder="Nombre de la categoría">
           </div>
           <button class="btn btn-primary" id="cat-add">Añadir</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Explotaciones -->
+    <div class="settings-section">
+      <div class="settings-section-title">Explotaciones</div>
+      <div class="card">
+        <div id="explot-list"></div>
+        <div class="divider"></div>
+        <div class="form-group" style="display:flex;gap:10px;align-items:flex-end;">
+          <div style="flex:1">
+            <label class="form-label">Nueva explotación</label>
+            <input class="form-control" id="explot-nueva" placeholder="Ej: Finca Norte">
+          </div>
+          <button class="btn btn-primary" id="explot-add">Añadir</button>
         </div>
       </div>
     </div>
@@ -158,6 +174,39 @@ export async function renderAjustes(container) {
     });
   });
   renderCats();
+
+  const renderExplots = () => {
+    const list = container.querySelector('#explot-list');
+    list.innerHTML = explotaciones.length === 0
+      ? `<div class="empty-state" style="padding:20px;"><p>Sin explotaciones creadas. Añade una para poder asignar animales a cada una.</p></div>`
+      : explotaciones.map(e => `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--color-border);">
+          <span style="flex:1">${escapeHtml(e.nombre)}</span>
+          <button class="btn btn-sm btn-danger" data-explodel="${e.id}">🗑</button>
+        </div>`).join('');
+    list.querySelectorAll('[data-explodel]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const idx = explotaciones.findIndex(e => e.id === btn.dataset.explodel);
+        if (idx !== -1) {
+          await remove('explotaciones', explotaciones[idx].id);
+          explotaciones.splice(idx, 1);
+          renderExplots();
+          showToast('Explotación eliminada');
+        }
+      });
+    });
+  };
+  renderExplots();
+
+  container.querySelector('#explot-add').addEventListener('click', async () => {
+    const nombre = container.querySelector('#explot-nueva').value.trim();
+    if (!nombre) { showToast('Escribe un nombre', 'error'); return; }
+    const nueva = { id: uid(), nombre };
+    await put('explotaciones', nueva);
+    explotaciones.push(nueva);
+    container.querySelector('#explot-nueva').value = '';
+    renderExplots();
+    showToast('Explotación añadida');
+  });
 
   container.querySelector('#aj-save-nombre').addEventListener('click', async () => {
     const name = container.querySelector('#aj-nombre').value.trim();

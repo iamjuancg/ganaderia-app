@@ -1,5 +1,5 @@
 const DB_NAME = 'GanaderiaDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let db = null;
 
@@ -39,6 +39,10 @@ export function openDB() {
 
       if (!d.objectStoreNames.contains('ajustes')) {
         d.createObjectStore('ajustes', { keyPath: 'key' });
+      }
+
+      if (!d.objectStoreNames.contains('explotaciones')) {
+        d.createObjectStore('explotaciones', { keyPath: 'id' });
       }
     };
 
@@ -104,7 +108,7 @@ export function setSetting(key, value) {
 }
 
 export async function clearAllStores() {
-  const stores = ['animales', 'eventos', 'transacciones', 'categorias', 'ajustes'];
+  const stores = ['animales', 'eventos', 'transacciones', 'categorias', 'ajustes', 'explotaciones'];
   for (const store of stores) {
     await new Promise((res, rej) => {
       const req = tx(store, 'readwrite').clear();
@@ -115,14 +119,14 @@ export async function clearAllStores() {
 }
 
 export async function exportAll() {
-  const [animales, eventos, transacciones, categorias] = await Promise.all([
-    getAll('animales'), getAll('eventos'), getAll('transacciones'), getAll('categorias')
+  const [animales, eventos, transacciones, categorias, explotaciones] = await Promise.all([
+    getAll('animales'), getAll('eventos'), getAll('transacciones'), getAll('categorias'), getAll('explotaciones')
   ]);
-  return { animales, eventos, transacciones, categorias, exportedAt: new Date().toISOString() };
+  return { animales, eventos, transacciones, categorias, explotaciones, exportedAt: new Date().toISOString() };
 }
 
 export async function importAll(data) {
-  const stores = ['animales', 'eventos', 'transacciones', 'categorias'];
+  const stores = ['animales', 'eventos', 'transacciones', 'categorias', 'explotaciones'];
   for (const store of stores) {
     if (!data[store]) continue;
     for (const record of data[store]) await put(store, record);
@@ -130,7 +134,7 @@ export async function importAll(data) {
 }
 
 export async function replaceAll(data) {
-  const stores = ['animales', 'eventos', 'transacciones', 'categorias'];
+  const stores = ['animales', 'eventos', 'transacciones', 'categorias', 'explotaciones'];
   for (const store of stores) {
     await new Promise((res, rej) => {
       const req = tx(store, 'readwrite').clear();

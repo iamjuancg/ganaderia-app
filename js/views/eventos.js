@@ -3,9 +3,12 @@ import { uid, TIPOS_EVENTO, eventoIcon, eventoLabel, escapeHtml, formatEur } fro
 import { formatDate, todayISO } from '../utils/date.js';
 import { showToast } from '../utils/toast.js';
 
-let filterTipo = '', filterEspecie = '', filterFechaDesde = '', filterFechaHasta = '';
+let filterTipo = '', filterEspecie = '', filterFechaDesde = '', filterFechaHasta = '', filterExplotacion = '';
+let _explotaciones = [];
 
 export async function renderEventos(container) {
+  _explotaciones = await getAll('explotaciones');
+
   container.innerHTML = `
     <div class="page-header">
       <h1 class="page-title">Eventos del rebaño</h1>
@@ -17,6 +20,11 @@ export async function renderEventos(container) {
       </select>
       <input type="date" class="form-control" id="ev-filter-desde" value="${filterFechaDesde}" title="Fecha desde">
       <input type="date" class="form-control" id="ev-filter-hasta" value="${filterFechaHasta}" title="Fecha hasta">
+      ${_explotaciones.length > 0 ? `
+      <select class="form-control" id="ev-filter-explotacion">
+        <option value="">Todas las explotaciones</option>
+        ${_explotaciones.map(e => `<option value="${e.id}" ${filterExplotacion === e.id ? 'selected' : ''}>${escapeHtml(e.nombre)}</option>`).join('')}
+      </select>` : ''}
     </div>
     <div id="eventos-list"></div>`;
 
@@ -25,6 +33,7 @@ export async function renderEventos(container) {
   container.querySelector('#ev-filter-tipo').addEventListener('change', e => { filterTipo = e.target.value; refresh(); });
   container.querySelector('#ev-filter-desde').addEventListener('change', e => { filterFechaDesde = e.target.value; refresh(); });
   container.querySelector('#ev-filter-hasta').addEventListener('change', e => { filterFechaHasta = e.target.value; refresh(); });
+  container.querySelector('#ev-filter-explotacion')?.addEventListener('change', e => { filterExplotacion = e.target.value; refresh(); });
 
   await loadEventos(container);
 }
@@ -32,11 +41,13 @@ export async function renderEventos(container) {
 async function loadEventos(container) {
   const [eventos, animales] = await Promise.all([getAll('eventos'), getAll('animales')]);
   const animalMap = Object.fromEntries(animales.map(a => [a.id, a]));
+  const explotMap = Object.fromEntries(_explotaciones.map(e => [e.id, e.nombre]));
 
   let filtered = [...eventos];
   if (filterTipo) filtered = filtered.filter(e => e.tipo === filterTipo);
   if (filterFechaDesde) filtered = filtered.filter(e => e.fecha >= filterFechaDesde);
   if (filterFechaHasta) filtered = filtered.filter(e => e.fecha <= filterFechaHasta + 'T23:59:59');
+  if (filterExplotacion) filtered = filtered.filter(e => animalMap[e.animalId]?.explotacionId === filterExplotacion);
   filtered.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
 
   const list = container.querySelector('#eventos-list');
@@ -51,16 +62,20 @@ async function loadEventos(container) {
     return;
   }
 
+  const showExplot = _explotaciones.length > 0;
+
   list.innerHTML = `<div class="table-container"><table>
     <thead><tr>
-      <th>Fecha</th><th>Tipo</th><th>Animal</th><th>Descripción</th><th>Datos</th>
+      <th>Fecha</th><th>Tipo</th><th>Animal</th>${showExplot ? '<th>Explotación</th>' : ''}<th>Descripción</th><th>Datos</th>
     </tr></thead>
     <tbody>${filtered.map(ev => {
       const a = animalMap[ev.animalId];
+      const explotNombre = showExplot && a?.explotacionId ? explotMap[a.explotacionId] : null;
       return `<tr>
         <td>${formatDate(ev.fecha)}</td>
         <td>${eventoIcon(ev.tipo)} ${eventoLabel(ev.tipo)}</td>
         <td>${a ? `<strong>${escapeHtml(a.crotal)}</strong>${a.nombre ? ' ' + escapeHtml(a.nombre) : ''}` : '—'}</td>
+        ${showExplot ? `<td>${explotNombre ? escapeHtml(explotNombre) : '<span class="text-muted">—</span>'}</td>` : ''}
         <td>${escapeHtml(ev.descripcion) || '—'}</td>
         <td>${ev.peso ? ev.peso + ' kg' : ''}${ev.importe ? formatEur(ev.importe) : ''}</td>
       </tr>`;
