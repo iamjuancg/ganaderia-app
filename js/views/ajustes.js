@@ -100,10 +100,13 @@ export async function renderAjustes(container) {
     <div class="settings-section">
       <div class="settings-section-title">Empleados</div>
       <div class="card">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
-          <span style="font-size:0.9rem;color:var(--color-text-muted);white-space:nowrap;">% SS empleador:</span>
-          <input type="number" class="form-control" id="aj-ss-pct" style="width:80px;" min="0" max="100" step="0.01" value="${ssPct}">
-          <button class="btn btn-sm btn-secondary" id="aj-save-ss">Guardar</button>
+        <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--color-bg);border-radius:8px;border:1px solid var(--color-border);margin-bottom:16px;flex-wrap:wrap;">
+          <span style="font-size:0.88rem;color:var(--color-text-muted);flex:1;min-width:160px;">% Seguridad Social empleador</span>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <input type="number" class="form-control" id="aj-ss-pct" style="width:72px;text-align:center;" min="0" max="100" step="0.01" value="${ssPct}">
+            <span style="font-size:0.88rem;color:var(--color-text-muted);">%</span>
+            <button class="btn btn-sm btn-secondary" id="aj-save-ss">Guardar</button>
+          </div>
         </div>
         <div id="empleados-list"></div>
         <div class="divider"></div>
@@ -447,31 +450,35 @@ export async function renderAjustes(container) {
     const list = container.querySelector('#empleados-list');
     const ss = parseFloat(container.querySelector('#aj-ss-pct')?.value) || ssPct;
     const sorted = [...empleados].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+    const avatarColors = ['#2d6a4f','#40916c','#264653','#e76f51','#457b9d','#6d6875','#e9c46a','#e63946'];
+    const initials = name => name.trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join('');
 
     if (sorted.length === 0) {
-      list.innerHTML = `<div class="empty-state" style="padding:20px;"><p>Sin empleados registrados.</p></div>`;
+      list.innerHTML = `<div class="empty-state" style="padding:24px;"><div class="empty-icon">👷</div><p>Sin empleados registrados.</p></div>`;
       return;
     }
 
-    const filas = sorted.map(e => {
+    const filas = sorted.map((e, i) => {
       const bruto = e.sueldoBruto || 0;
       const ssCost = bruto * ss / 100;
       const total = bruto + ssCost;
-      const extras = [
+      const color = avatarColors[i % avatarColors.length];
+      const meta = [
         e.puesto ? escapeHtml(e.puesto) : '',
         e.dni ? `DNI: ${escapeHtml(e.dni)}` : '',
       ].filter(Boolean).join(' · ');
-      return `<div style="padding:10px 0;border-bottom:1px solid var(--color-border);">
-        <div style="display:flex;align-items:flex-start;gap:8px;">
-          <div style="flex:1;min-width:0;">
-            <div style="font-weight:600;">${escapeHtml(e.nombre)}</div>
-            ${extras ? `<div style="margin-top:2px;font-size:0.85rem;color:var(--color-text-muted);">${extras}</div>` : ''}
-            ${bruto > 0 ? `<div style="margin-top:4px;font-size:0.82rem;color:var(--color-text-muted);">
-              Bruto: <strong style="color:var(--color-text)">${formatEur(bruto)}</strong> &nbsp;
-              SS (${ss}%): <strong style="color:var(--color-text)">${formatEur(ssCost)}</strong> &nbsp;
-              Total: <strong style="color:var(--color-primary)">${formatEur(total)}</strong>
-            </div>` : ''}
-          </div>
+      return `<div style="display:flex;align-items:center;gap:12px;padding:12px;border-radius:8px;border:1px solid var(--color-border);margin-bottom:8px;">
+        <div style="width:44px;height:44px;border-radius:50%;background:${color};color:#fff;display:flex;align-items:center;justify-content:center;font-size:1rem;font-weight:700;flex-shrink:0;">${initials(e.nombre)}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:600;font-size:0.98rem;">${escapeHtml(e.nombre)}</div>
+          ${meta ? `<div style="font-size:0.82rem;color:var(--color-text-muted);margin-top:2px;">${meta}</div>` : ''}
+          ${bruto > 0 ? `<div style="margin-top:6px;font-size:0.82rem;display:flex;gap:12px;flex-wrap:wrap;color:var(--color-text-muted);">
+            <span>Bruto <strong style="color:var(--color-text)">${formatEur(bruto)}</strong></span>
+            <span>SS (${ss}%) <strong style="color:var(--color-text)">${formatEur(ssCost)}</strong></span>
+            <span>Total <strong style="color:var(--color-primary)">${formatEur(total)}</strong></span>
+          </div>` : ''}
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0;">
           <button class="btn btn-sm btn-secondary" data-empedit="${e.id}" title="Editar">✏️</button>
           <button class="btn btn-sm btn-danger" data-empdel="${e.id}" title="Eliminar">🗑</button>
         </div>
@@ -481,10 +488,10 @@ export async function renderAjustes(container) {
     const totalBruto = sorted.reduce((s, e) => s + (e.sueldoBruto || 0), 0);
     const totalSS = totalBruto * ss / 100;
     const totalCoste = totalBruto + totalSS;
-    const totales = totalBruto > 0 ? `<div style="display:flex;gap:20px;padding:10px 0;font-size:0.88rem;flex-wrap:wrap;color:var(--color-text-muted);">
-      <span>Bruto total: <strong style="color:var(--color-text)">${formatEur(totalBruto)}</strong></span>
-      <span>SS total: <strong style="color:var(--color-text)">${formatEur(totalSS)}</strong></span>
-      <span>Coste total: <strong style="color:var(--color-primary)">${formatEur(totalCoste)}</strong></span>
+    const totales = totalBruto > 0 ? `<div class="summary-bar" style="margin-top:8px;margin-bottom:0;">
+      <div class="summary-item"><div class="summary-label">Bruto total</div><div class="summary-value">${formatEur(totalBruto)}</div></div>
+      <div class="summary-item"><div class="summary-label">SS total</div><div class="summary-value expense">${formatEur(totalSS)}</div></div>
+      <div class="summary-item"><div class="summary-label">Coste total</div><div class="summary-value income">${formatEur(totalCoste)}</div></div>
     </div>` : '';
 
     list.innerHTML = filas + totales;

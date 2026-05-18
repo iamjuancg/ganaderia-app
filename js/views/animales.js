@@ -19,7 +19,7 @@ export async function renderAnimales(container) {
     </div>
 
     <div class="filters-bar">
-      <input type="search" class="form-control search-input" id="search-animal" placeholder="Buscar crotal o nombre…" value="${escapeHtml(filterSearch)}">
+      <input type="search" class="form-control search-input" id="search-animal" placeholder="Buscar crotal, nombre o últimas cifras…" value="${escapeHtml(filterSearch)}">
       <select class="form-control" id="filter-especie">
         <option value="">Todas las especies</option>
         ${ESPECIES.map(e => `<option value="${e}" ${filterEspecie === e ? 'selected' : ''}>${e}</option>`).join('')}
@@ -59,8 +59,16 @@ async function loadAnimales(container) {
   if (filterEspecie) animales = animales.filter(a => a.especie === filterEspecie);
   if (filterStatus) animales = animales.filter(a => a.status === filterStatus);
   if (filterSearch) {
-    const q = filterSearch.toLowerCase();
-    animales = animales.filter(a => a.crotal?.toLowerCase().includes(q) || a.nombre?.toLowerCase().includes(q));
+    const q = filterSearch.toLowerCase().trim();
+    animales = animales.filter(a => {
+      if (a.crotal?.toLowerCase().includes(q)) return true;
+      if (a.nombre?.toLowerCase().includes(q)) return true;
+      if (/^\d+$/.test(q)) {
+        const digits = a.crotal?.replace(/\D/g, '') ?? '';
+        if (digits.endsWith(q)) return true;
+      }
+      return false;
+    });
   }
   if (filterExplotacion) animales = animales.filter(a => a.explotacionId === filterExplotacion);
   animales.sort((a, b) => {
