@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ganaderia-v5';
+const CACHE_NAME = 'ganaderia-v6';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -10,6 +10,7 @@ const STATIC_ASSETS = [
   './js/db/seed.js',
   './js/utils/appstate.js',
   './js/utils/date.js',
+  './js/utils/dropdown.js',
   './js/utils/format.js',
   './js/utils/gdrive.js',
   './js/utils/toast.js',
