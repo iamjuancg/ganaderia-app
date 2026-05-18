@@ -128,3 +128,16 @@ export async function importAll(data) {
     for (const record of data[store]) await put(store, record);
   }
 }
+
+export async function replaceAll(data) {
+  const stores = ['animales', 'eventos', 'transacciones', 'categorias'];
+  for (const store of stores) {
+    await new Promise((res, rej) => {
+      const req = tx(store, 'readwrite').clear();
+      req.onsuccess = () => res();
+      req.onerror = e => rej(e.target.error);
+    });
+    if (!data[store]) continue;
+    for (const record of data[store]) await put(store, record);
+  }
+}

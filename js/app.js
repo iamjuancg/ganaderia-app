@@ -1,4 +1,4 @@
-import { openDB, exportAll, importAll } from './db/database.js';
+import { openDB, exportAll, importAll, replaceAll } from './db/database.js';
 import { seedDefaults } from './db/seed.js';
 import { updateExplotacionName } from './utils/appstate.js';
 import { gdriveInit, gdriveAutoSync, gdriveHandleRedirectToken } from './utils/gdrive.js';
@@ -33,7 +33,7 @@ async function init() {
   gdriveInit().then(async () => {
     // En iOS PWA el token llega como redirect — extraerlo antes de cualquier otra cosa
     const fromRedirect = gdriveHandleRedirectToken();
-    await gdriveAutoSync(importAll, exportAll);
+    await gdriveAutoSync(replaceAll, exportAll);
     if (fromRedirect) {
       // Navegar a ajustes para que el usuario vea que está conectado
       navigate('ajustes');

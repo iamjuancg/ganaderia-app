@@ -1,4 +1,4 @@
-import { getAll, put, remove, getSetting, setSetting, clearAllStores, exportAll, importAll } from '../db/database.js';
+import { getAll, put, remove, getSetting, setSetting, clearAllStores, exportAll, importAll, replaceAll } from '../db/database.js';
 import { uid, escapeHtml, CATEGORIAS_DEFECTO, downloadFile, csvRow, formatEur } from '../utils/format.js';
 import { formatDate } from '../utils/date.js';
 import { showToast } from '../utils/toast.js';
@@ -244,7 +244,7 @@ export async function renderAjustes(container) {
         const fileInfo = await gdriveGetFileInfo();
         if (fileInfo) {
           const result = await gdriveDownload();
-          if (result) await importAll(result.data);
+          if (result) await replaceAll(result.data);
           showToast('Conectado. Datos descargados de Drive');
         } else {
           const data = await exportAll();
@@ -268,7 +268,7 @@ export async function renderAjustes(container) {
             const lastSync = gdriveGetLastSync();
             if (!lastSync || new Date(fileInfo.modifiedTime) > new Date(lastSync)) {
               const result = await gdriveDownload();
-              if (result) await importAll(result.data);
+              if (result) await replaceAll(result.data);
             } else {
               await gdriveUpload(await exportAll());
             }
@@ -296,11 +296,11 @@ export async function renderAjustes(container) {
     });
 
     container.querySelector('#drive-download')?.addEventListener('click', async () => {
-      confirmModal('¿Descargar datos desde Drive? Los datos locales se combinarán con los de Drive.', async () => {
+      confirmModal('¿Descargar datos desde Drive? Los datos locales serán reemplazados por los de Drive.', async () => {
         try {
           const result = await gdriveDownload();
           if (!result) { showToast('No hay backup en Drive', 'error'); return; }
-          await importAll(result.data);
+          await replaceAll(result.data);
           const nAnimales = result.data.animales?.length ?? 0;
           showToast(`Drive: ${nAnimales} animales descargados`);
           refreshDriveSection();
