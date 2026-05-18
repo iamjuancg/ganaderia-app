@@ -4,11 +4,17 @@ import { formatDate, todayISO, getYear, currentYear } from '../utils/date.js';
 import { showToast } from '../utils/toast.js';
 import { openModal, confirmModal } from '../utils/modal.js';
 
-let activeTab = 'ingreso', filterYear = currentYear(), filterCat = '', filterExplotacion = '';
+let activeTab = 'ingreso', filterYear = currentYear();
+let filterCats = new Set();
+let filterExplotaciones = new Set();
+
+function chip(label, active, attr, val) {
+  const cls = active ? 'btn-primary' : 'btn-secondary';
+  return `<button class="btn btn-sm ${cls}" style="border-radius:20px;" ${attr}="${escapeHtml(val)}">${escapeHtml(label)}</button>`;
+}
 
 export async function renderFinanzas(container) {
-  const [categorias, years] = await Promise.all([getAll('categorias'), getAvailableYears()]);
-  const explotaciones = await getAll('explotaciones');
+  const years = await getAvailableYears();
 
   container.innerHTML = `
     <div class="page-header">
@@ -19,21 +25,16 @@ export async function renderFinanzas(container) {
       </div>
     </div>
 
-    <div id="summary-bar-finanzas"></div>
-
-    <div class="filters-bar">
-      <select class="form-control" id="fi-year">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+      <label class="form-label" style="margin:0;white-space:nowrap;">Año:</label>
+      <select class="form-control" id="fi-year" style="width:110px;">
         ${years.map(y => `<option value="${y}" ${filterYear === y ? 'selected' : ''}>${y}</option>`).join('')}
       </select>
-      <select class="form-control" id="fi-cat">
-        <option value="">Todas las categorías</option>
-      </select>
-      ${explotaciones.length > 0 ? `
-      <select class="form-control" id="fi-explotacion">
-        <option value="">Todas las explotaciones</option>
-        ${explotaciones.map(e => `<option value="${e.id}" ${filterExplotacion === e.id ? 'selected' : ''}>${escapeHtml(e.nombre)}</option>`).join('')}
-      </select>` : ''}
     </div>
+
+    <div id="fi-chips" style="margin-bottom:8px;"></div>
+
+    <div id="summary-bar-finanzas"></div>
 
     <div class="tabs">
       <button class="tab-btn ${activeTab === 'ingreso' ? 'active' : ''}" data-tab="ingreso">Ingresos</button>
@@ -54,11 +55,13 @@ export async function renderFinanzas(container) {
   });
 
   container.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => { activeTab = btn.dataset.tab; refresh(); });
+    btn.addEventListener('click', () => {
+      activeTab = btn.dataset.tab;
+      filterCats = new Set();
+      refresh();
+    });
   });
   container.querySelector('#fi-year').addEventListener('change', e => { filterYear = Number(e.target.value); refresh(); });
-  container.querySelector('#fi-cat').addEventListener('change', e => { filterCat = e.target.value; refresh(); });
-  container.querySelector('#fi-explotacion')?.addEventListener('change', e => { filterExplotacion = e.target.value; refresh(); });
 
   await loadFinanzas(container);
 }
@@ -76,27 +79,67 @@ async function loadFinanzas(container) {
   ]);
   const catMap = Object.fromEntries(categorias.map(c => [c.id, c]));
   const explotMap = Object.fromEntries(explotaciones.map(e => [e.id, e.nombre]));
+  const catsTab = categorias.filter(c => c.tipo === activeTab);
   const showExplot = explotaciones.length > 0;
 
-  // Rellenar selector categorías según tab
-  const catSel = container.querySelector('#fi-cat');
-  const catsTab = categorias.filter(c => c.tipo === activeTab);
-  catSel.innerHTML = `<option value="">Todas las categorías</option>
-    ${catsTab.map(c => `<option value="${c.id}" ${filterCat === c.id ? 'selected' : ''}>${escapeHtml(c.nombre)}</option>`).join('')}`;
+  // --- Chips ---
+  const chipsEl = container.querySelector('#fi-chips');
+  if (chipsEl) {
+    const explotRow = showExplot ? `
+      <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:6px;">
+        <span class="text-muted text-small" style="min-width:80px;">Explotación:</span>
+        ${chip('Todas', filterExplotaciones.size === 0, 'data-explot', '')}
+        ${explotaciones.map(e => chip(e.nombre, filterExplotaciones.has(e.id), 'data-explot', e.id)).join('')}
+      </div>` : '';
 
-  // Tabs activos
+    const catRow = catsTab.length > 0 ? `
+      <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+        <span class="text-muted text-small" style="min-width:80px;">Categoría:</span>
+        ${chip('Todas', filterCats.size === 0, 'data-cat', '')}
+        ${catsTab.map(c => chip(c.nombre, filterCats.has(c.id), 'data-cat', c.id)).join('')}
+      </div>` : '';
+
+    chipsEl.innerHTML = explotRow + catRow;
+
+    chipsEl.querySelectorAll('[data-explot]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.explot;
+        if (id === '') filterExplotaciones.clear();
+        else { if (filterExplotaciones.has(id)) filterExplotaciones.delete(id); else filterExplotaciones.add(id); }
+        loadFinanzas(container);
+      });
+    });
+    chipsEl.querySelectorAll('[data-cat]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.cat;
+        if (id === '') filterCats.clear();
+        else { if (filterCats.has(id)) filterCats.delete(id); else filterCats.add(id); }
+        loadFinanzas(container);
+      });
+    });
+  }
+
+  // --- Tabs active ---
   container.querySelectorAll('.tab-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === activeTab));
 
+  // --- Filtrado lista ---
   let filtered = transacciones.filter(t => t.tipo === activeTab && getYear(t.fecha) === filterYear);
-  if (filterCat) filtered = filtered.filter(t => t.categoriaId === filterCat);
-  if (filterExplotacion) filtered = filtered.filter(t => t.explotacionId === filterExplotacion);
+  if (filterExplotaciones.size > 0) filtered = filtered.filter(t => filterExplotaciones.has(t.explotacionId));
+  if (filterCats.size > 0) filtered = filtered.filter(t => filterCats.has(t.categoriaId));
   filtered.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
 
-  // Summary (always global for the year, regardless of explotación filter)
-  const allYear = transacciones.filter(t => getYear(t.fecha) === filterYear);
-  const ingresos = allYear.filter(t => t.tipo === 'ingreso').reduce((s, t) => s + t.importe, 0);
-  const gastos = allYear.filter(t => t.tipo === 'gasto').reduce((s, t) => s + t.importe, 0);
+  // --- Summary (respeta ambos filtros) ---
+  let forSummary = transacciones.filter(t => getYear(t.fecha) === filterYear);
+  if (filterExplotaciones.size > 0) forSummary = forSummary.filter(t => filterExplotaciones.has(t.explotacionId));
+  let summaryIng = forSummary.filter(t => t.tipo === 'ingreso');
+  let summaryGast = forSummary.filter(t => t.tipo === 'gasto');
+  if (filterCats.size > 0 && activeTab === 'ingreso') summaryIng = summaryIng.filter(t => filterCats.has(t.categoriaId));
+  if (filterCats.size > 0 && activeTab === 'gasto') summaryGast = summaryGast.filter(t => filterCats.has(t.categoriaId));
+
+  const ingresos = summaryIng.reduce((s, t) => s + t.importe, 0);
+  const gastos = summaryGast.reduce((s, t) => s + t.importe, 0);
   const balance = ingresos - gastos;
+
   const summaryBar = container.querySelector('#summary-bar-finanzas');
   if (summaryBar) summaryBar.innerHTML = `<div class="summary-bar">
     <div class="summary-item"><div class="summary-label">Ingresos ${filterYear}</div><div class="summary-value income">${formatEur(ingresos)}</div></div>

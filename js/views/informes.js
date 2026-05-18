@@ -3,6 +3,14 @@ import { formatEur, escapeHtml } from '../utils/format.js';
 import { currentYear, getYear } from '../utils/date.js';
 
 let selectedYear = currentYear();
+let filterExplotaciones = new Set();
+let filterCatsIng = new Set();
+let filterCatsGast = new Set();
+
+function chip(label, active, attr, val) {
+  const cls = active ? 'btn-primary' : 'btn-secondary';
+  return `<button class="btn btn-sm ${cls}" style="border-radius:20px;" ${attr}="${escapeHtml(val)}">${escapeHtml(label)}</button>`;
+}
 
 export async function renderInformes(container) {
   const txs = await getAll('transacciones');
@@ -20,6 +28,7 @@ export async function renderInformes(container) {
         <button class="btn btn-secondary no-print" onclick="window.print()">🖨 Imprimir</button>
       </div>
     </div>
+    <div id="inf-chips" style="margin-bottom:8px;"></div>
     <div id="inf-content"></div>`;
 
   container.querySelector('#inf-year').addEventListener('change', e => {
@@ -30,20 +39,79 @@ export async function renderInformes(container) {
 }
 
 async function loadInformes(container) {
-  const [animales, transacciones, categorias] = await Promise.all([
-    getAll('animales'), getAll('transacciones'), getAll('categorias')
+  const [animales, transacciones, categorias, explotaciones] = await Promise.all([
+    getAll('animales'), getAll('transacciones'), getAll('categorias'), getAll('explotaciones')
   ]);
   const catMap = Object.fromEntries(categorias.map(c => [c.id, c]));
+  const catIngresos = categorias.filter(c => c.tipo === 'ingreso');
+  const catGastos = categorias.filter(c => c.tipo === 'gasto');
 
-  const txYear = transacciones.filter(t => getYear(t.fecha) === selectedYear);
-  const ingresos = txYear.filter(t => t.tipo === 'ingreso');
-  const gastos = txYear.filter(t => t.tipo === 'gasto');
+  // --- Chips ---
+  const chipsEl = container.querySelector('#inf-chips');
+  if (chipsEl) {
+    const explotRow = explotaciones.length > 0 ? `
+      <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:6px;">
+        <span class="text-muted text-small" style="min-width:90px;">Explotación:</span>
+        ${chip('Todas', filterExplotaciones.size === 0, 'data-explot', '')}
+        ${explotaciones.map(e => chip(e.nombre, filterExplotaciones.has(e.id), 'data-explot', e.id)).join('')}
+      </div>` : '';
+
+    const ingRow = catIngresos.length > 0 ? `
+      <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:6px;">
+        <span class="text-muted text-small" style="min-width:90px;">Cat. ingreso:</span>
+        ${chip('Todas', filterCatsIng.size === 0, 'data-ing', '')}
+        ${catIngresos.map(c => chip(c.nombre, filterCatsIng.has(c.id), 'data-ing', c.id)).join('')}
+      </div>` : '';
+
+    const gastRow = catGastos.length > 0 ? `
+      <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+        <span class="text-muted text-small" style="min-width:90px;">Cat. gasto:</span>
+        ${chip('Todas', filterCatsGast.size === 0, 'data-gast', '')}
+        ${catGastos.map(c => chip(c.nombre, filterCatsGast.has(c.id), 'data-gast', c.id)).join('')}
+      </div>` : '';
+
+    chipsEl.innerHTML = explotRow + ingRow + gastRow;
+
+    chipsEl.querySelectorAll('[data-explot]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.explot;
+        if (id === '') filterExplotaciones.clear();
+        else { if (filterExplotaciones.has(id)) filterExplotaciones.delete(id); else filterExplotaciones.add(id); }
+        loadInformes(container);
+      });
+    });
+    chipsEl.querySelectorAll('[data-ing]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.ing;
+        if (id === '') filterCatsIng.clear();
+        else { if (filterCatsIng.has(id)) filterCatsIng.delete(id); else filterCatsIng.add(id); }
+        loadInformes(container);
+      });
+    });
+    chipsEl.querySelectorAll('[data-gast]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.gast;
+        if (id === '') filterCatsGast.clear();
+        else { if (filterCatsGast.has(id)) filterCatsGast.delete(id); else filterCatsGast.add(id); }
+        loadInformes(container);
+      });
+    });
+  }
+
+  // --- Aplicar filtros ---
+  let txYear = transacciones.filter(t => getYear(t.fecha) === selectedYear);
+  if (filterExplotaciones.size > 0) txYear = txYear.filter(t => filterExplotaciones.has(t.explotacionId));
+
+  let ingresos = txYear.filter(t => t.tipo === 'ingreso');
+  let gastos = txYear.filter(t => t.tipo === 'gasto');
+  if (filterCatsIng.size > 0) ingresos = ingresos.filter(t => filterCatsIng.has(t.categoriaId));
+  if (filterCatsGast.size > 0) gastos = gastos.filter(t => filterCatsGast.has(t.categoriaId));
 
   const totalIngresos = ingresos.reduce((s, t) => s + t.importe, 0);
   const totalGastos = gastos.reduce((s, t) => s + t.importe, 0);
   const balance = totalIngresos - totalGastos;
 
-  // Agrupar por categoría
+  // --- Agrupar por categoría ---
   const byCat = (txs) => {
     const map = {};
     for (const t of txs) {
@@ -56,7 +124,7 @@ async function loadInformes(container) {
   const ingCat = byCat(ingresos);
   const gastCat = byCat(gastos);
 
-  // Rebaño
+  // --- Rebaño ---
   const ESTADOS = ['activo', 'vendido', 'muerto'];
   const especiesSet = [...new Set(animales.map(a => a.especie))].sort();
   const rebanoData = {};
@@ -65,10 +133,13 @@ async function loadInformes(container) {
     rebanoData[a.especie][a.status] = (rebanoData[a.especie][a.status] || 0) + 1;
   }
 
+  const activeFilters = filterExplotaciones.size > 0 || filterCatsIng.size > 0 || filterCatsGast.size > 0;
+  const filterNote = activeFilters ? `<span class="badge" style="background:var(--color-primary);color:#fff;margin-left:8px;font-size:0.75rem;">Filtrado</span>` : '';
+
   const content = container.querySelector('#inf-content');
   content.innerHTML = `
     <!-- P&L -->
-    <div class="section-title">Cuenta de resultados — ${selectedYear}</div>
+    <div class="section-title">Cuenta de resultados — ${selectedYear} ${filterNote}</div>
     <div class="summary-bar" style="margin-bottom:24px;">
       <div class="summary-item"><div class="summary-label">Total ingresos</div><div class="summary-value income">${formatEur(totalIngresos)}</div></div>
       <div class="summary-item"><div class="summary-label">Total gastos</div><div class="summary-value expense">${formatEur(totalGastos)}</div></div>
@@ -122,9 +193,7 @@ async function loadInformes(container) {
       </tbody>
     </table></div>`;
 
-  if (gastCat.length > 0) {
-    drawPieChart(gastCat, totalGastos);
-  }
+  if (gastCat.length > 0) drawPieChart(gastCat, totalGastos);
 }
 
 function drawPieChart(data, total) {
@@ -150,7 +219,6 @@ function drawPieChart(data, total) {
     startAngle += slice;
   });
 
-  // Leyenda a la derecha
   const lx = cx + r + 20, ly = 20;
   data.slice(0, 8).forEach(([cat, val], i) => {
     const y = ly + i * 22;
