@@ -91,23 +91,7 @@ export async function renderAjustes(container) {
       <div class="card">
         <div id="explot-list"></div>
         <div class="divider"></div>
-        <div class="form-group">
-          <label class="form-label">Nueva explotación</label>
-          <input class="form-control" id="explot-nueva" placeholder="Ej: Finca Norte">
-        </div>
-        <div class="grid-2" style="gap:10px;">
-          <div class="form-group" style="margin:0;">
-            <label class="form-label">Hectáreas <span class="text-muted" style="font-weight:normal;">(opcional)</span></label>
-            <input type="number" inputmode="decimal" class="form-control" id="explot-tamano" min="0" step="0.01" placeholder="Ej: 150">
-          </div>
-          <div class="form-group" style="margin:0;">
-            <label class="form-label">Renta anual <span class="text-muted" style="font-weight:normal;">(opcional, €)</span></label>
-            <input type="number" inputmode="decimal" class="form-control" id="explot-renta" min="0" step="0.01" placeholder="0.00">
-          </div>
-        </div>
-        <div style="margin-top:12px;">
-          <button class="btn btn-primary" id="explot-add">Añadir explotación</button>
-        </div>
+        <button class="btn btn-primary" id="explot-add-btn" style="margin-top:4px;">+ Añadir explotación</button>
       </div>
     </div>
 
@@ -393,21 +377,44 @@ export async function renderAjustes(container) {
   };
   renderExplots();
 
-  container.querySelector('#explot-add').addEventListener('click', async () => {
-    const nombre = container.querySelector('#explot-nueva').value.trim();
-    if (!nombre) { showToast('Escribe un nombre', 'error'); return; }
-    const tamanoVal = container.querySelector('#explot-tamano').value;
-    const tamano = tamanoVal !== '' ? Number(tamanoVal) : null;
-    const rentaVal = container.querySelector('#explot-renta').value;
-    const rentaAnual = rentaVal !== '' ? Number(rentaVal) : null;
-    const nueva = { id: uid(), nombre, tamano, rentaAnual };
-    await put('explotaciones', nueva);
-    explotaciones.push(nueva);
-    container.querySelector('#explot-nueva').value = '';
-    container.querySelector('#explot-tamano').value = '';
-    container.querySelector('#explot-renta').value = '';
-    renderExplots();
-    showToast('Explotación añadida');
+  container.querySelector('#explot-add-btn').addEventListener('click', () => {
+    const { overlay } = openModal({
+      title: 'Nueva explotación',
+      bodyHtml: `
+        <div class="form-group">
+          <label class="form-label">Nombre *</label>
+          <input class="form-control" id="en-nombre" placeholder="Ej: Finca Norte">
+        </div>
+        <div class="grid-2" style="gap:10px;">
+          <div class="form-group" style="margin:0;">
+            <label class="form-label">Hectáreas <span class="text-muted" style="font-weight:normal;">(opcional)</span></label>
+            <input type="number" inputmode="decimal" class="form-control" id="en-tamano" min="0" step="0.01" placeholder="Ej: 150">
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label class="form-label">Renta anual <span class="text-muted" style="font-weight:normal;">(opcional, €)</span></label>
+            <input type="number" inputmode="decimal" class="form-control" id="en-renta" min="0" step="0.01" placeholder="0.00">
+          </div>
+        </div>`,
+      footerHtml: `
+        <button class="btn btn-secondary" id="en-cancel">Cancelar</button>
+        <button class="btn btn-primary" id="en-save">Añadir</button>`
+    });
+    overlay.querySelector('#en-nombre').focus();
+    overlay.querySelector('#en-cancel').addEventListener('click', () => overlay.remove());
+    overlay.querySelector('#en-save').addEventListener('click', async () => {
+      const nombre = overlay.querySelector('#en-nombre').value.trim();
+      if (!nombre) { showToast('El nombre es obligatorio', 'error'); return; }
+      const tamanoVal = overlay.querySelector('#en-tamano').value;
+      const tamano = tamanoVal !== '' ? Number(tamanoVal) : null;
+      const rentaVal = overlay.querySelector('#en-renta').value;
+      const rentaAnual = rentaVal !== '' ? Number(rentaVal) : null;
+      const nueva = { id: uid(), nombre, tamano, rentaAnual };
+      await put('explotaciones', nueva);
+      explotaciones.push(nueva);
+      overlay.remove();
+      renderExplots();
+      showToast('Explotación añadida');
+    });
   });
 
   container.querySelector('#aj-save-nombre').addEventListener('click', async () => {
