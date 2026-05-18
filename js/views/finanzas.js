@@ -7,7 +7,6 @@ import { openModal, confirmModal } from '../utils/modal.js';
 let activeTab = 'ingreso', filterYear = currentYear();
 let filterCats = new Set();
 let filterExplotaciones = new Set();
-let filtersOpen = false;
 
 export async function renderFinanzas(container) {
   const years = await getAvailableYears();
@@ -21,17 +20,13 @@ export async function renderFinanzas(container) {
       </div>
     </div>
 
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;" id="fi-filter-bar">
       <select class="form-control" id="fi-year" style="width:110px;">
         ${years.map(y => `<option value="${y}" ${filterYear === y ? 'selected' : ''}>${y}</option>`).join('')}
       </select>
-      <button class="btn btn-secondary" id="fi-toggle-filters" style="display:flex;align-items:center;gap:6px;">
-        Filtros <span id="fi-filter-badge"></span> <span id="fi-toggle-icon">${filtersOpen ? '▲' : '▼'}</span>
-      </button>
-    </div>
-
-    <div id="fi-filter-panel" style="display:${filtersOpen ? 'block' : 'none'};margin-bottom:12px;">
-      <div id="fi-filter-inner"></div>
+      <div id="fi-dropdown-explot" class="fi-dropdown"></div>
+      <div id="fi-dropdown-cat" class="fi-dropdown"></div>
+      <button class="btn btn-sm btn-secondary" id="fi-clear-filters" style="display:none;">✕ Limpiar</button>
     </div>
 
     <div id="summary-bar-finanzas"></div>
@@ -67,13 +62,72 @@ export async function renderFinanzas(container) {
     refresh();
   });
 
-  container.querySelector('#fi-toggle-filters').addEventListener('click', () => {
-    filtersOpen = !filtersOpen;
-    container.querySelector('#fi-filter-panel').style.display = filtersOpen ? 'block' : 'none';
-    container.querySelector('#fi-toggle-icon').textContent = filtersOpen ? '▲' : '▼';
+  container.querySelector('#fi-clear-filters').addEventListener('click', () => {
+    filterExplotaciones = new Set();
+    filterCats = new Set();
+    refresh();
   });
 
+  // Close dropdowns on outside click
+  document.addEventListener('click', _closeAllDropdowns);
+
   await loadFinanzas(container);
+}
+
+function _closeAllDropdowns(e) {
+  if (!e.target.closest('.fi-dropdown')) {
+    document.querySelectorAll('.fi-dropdown-panel').forEach(p => p.remove());
+    document.querySelectorAll('.fi-dropdown-btn.open').forEach(b => b.classList.remove('open'));
+  }
+}
+
+function buildDropdown(container, wrapperId, label, items, selected, onchange) {
+  const wrapper = container.querySelector('#' + wrapperId);
+  if (!wrapper) return;
+  if (items.length === 0) { wrapper.innerHTML = ''; return; }
+
+  const count = selected.size;
+  const btnLabel = count > 0 ? `${label} <span class="fi-dd-badge">${count}</span>` : label;
+
+  wrapper.innerHTML = `
+    <button class="btn btn-secondary fi-dropdown-btn${count > 0 ? ' fi-dd-active' : ''}" style="position:relative;">
+      ${btnLabel} <span style="margin-left:4px;font-size:0.7rem;">▼</span>
+    </button>`;
+
+  const btn = wrapper.querySelector('button');
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    // Close other dropdowns
+    document.querySelectorAll('.fi-dropdown-panel').forEach(p => {
+      if (!wrapper.contains(p)) p.remove();
+    });
+    document.querySelectorAll('.fi-dropdown-btn.open').forEach(b => {
+      if (b !== btn) b.classList.remove('open');
+    });
+
+    const existingPanel = wrapper.querySelector('.fi-dropdown-panel');
+    if (existingPanel) { existingPanel.remove(); btn.classList.remove('open'); return; }
+
+    btn.classList.add('open');
+    const panel = document.createElement('div');
+    panel.className = 'fi-dropdown-panel';
+    panel.innerHTML = items.map(item => `
+      <label class="fi-dd-item${selected.has(item.id) ? ' fi-dd-checked' : ''}">
+        <input type="checkbox" value="${item.id}" ${selected.has(item.id) ? 'checked' : ''}>
+        <span>${escapeHtml(item.nombre)}</span>
+      </label>`).join('');
+
+    panel.querySelectorAll('input[type=checkbox]').forEach(cb => {
+      cb.addEventListener('change', () => {
+        cb.closest('label').classList.toggle('fi-dd-checked', cb.checked);
+        if (cb.checked) selected.add(cb.value);
+        else selected.delete(cb.value);
+        onchange();
+      });
+    });
+
+    wrapper.appendChild(panel);
+  });
 }
 
 async function getAvailableYears() {
@@ -92,57 +146,16 @@ async function loadFinanzas(container) {
   const catsTab = categorias.filter(c => c.tipo === activeTab);
   const showExplot = explotaciones.length > 0;
 
-  // --- Panel de filtros ---
-  const filterInner = container.querySelector('#fi-filter-inner');
-  if (filterInner) {
-    const explotSize = Math.min(Math.max(explotaciones.length, 2), 5);
-    const catSize = Math.min(Math.max(catsTab.length, 2), 6);
+  // Build dropdowns
+  buildDropdown(container, 'fi-dropdown-explot', 'Explotación',
+    explotaciones, filterExplotaciones, () => loadFinanzas(container));
+  buildDropdown(container, 'fi-dropdown-cat', 'Categoría',
+    catsTab, filterCats, () => loadFinanzas(container));
 
-    filterInner.innerHTML = `
-      <div class="card" style="padding:12px;">
-        <div class="grid-2" style="gap:16px;">
-          ${showExplot ? `
-          <div class="form-group" style="margin:0;">
-            <label class="form-label">Explotación <span class="text-muted" style="font-weight:normal;">(vacío = todas)</span></label>
-            <select class="form-control" id="fi-explotacion" multiple size="${explotSize}">
-              ${explotaciones.map(e => `<option value="${e.id}" ${filterExplotaciones.has(e.id) ? 'selected' : ''}>${escapeHtml(e.nombre)}</option>`).join('')}
-            </select>
-          </div>` : ''}
-          <div class="form-group" style="margin:0;">
-            <label class="form-label">Categoría <span class="text-muted" style="font-weight:normal;">(vacío = todas)</span></label>
-            <select class="form-control" id="fi-cat" multiple size="${catSize}">
-              ${catsTab.map(c => `<option value="${c.id}" ${filterCats.has(c.id) ? 'selected' : ''}>${escapeHtml(c.nombre)}</option>`).join('')}
-            </select>
-          </div>
-        </div>
-        <div style="margin-top:10px;">
-          <button class="btn btn-sm btn-secondary" id="fi-clear-filters">Limpiar filtros</button>
-        </div>
-      </div>`;
-
-    filterInner.querySelector('#fi-explotacion')?.addEventListener('change', e => {
-      filterExplotaciones = new Set([...e.target.selectedOptions].map(o => o.value));
-      loadFinanzas(container);
-    });
-    filterInner.querySelector('#fi-cat')?.addEventListener('change', e => {
-      filterCats = new Set([...e.target.selectedOptions].map(o => o.value));
-      loadFinanzas(container);
-    });
-    filterInner.querySelector('#fi-clear-filters').addEventListener('click', () => {
-      filterExplotaciones = new Set();
-      filterCats = new Set();
-      loadFinanzas(container);
-    });
-  }
-
-  // --- Badge filtros activos ---
+  // Limpiar button visibility
   const activeCount = filterExplotaciones.size + filterCats.size;
-  const badge = container.querySelector('#fi-filter-badge');
-  if (badge) {
-    badge.innerHTML = activeCount > 0
-      ? `<span class="badge" style="background:var(--color-primary);color:#fff;">${activeCount}</span>`
-      : '';
-  }
+  const clearBtn = container.querySelector('#fi-clear-filters');
+  if (clearBtn) clearBtn.style.display = activeCount > 0 ? '' : 'none';
 
   // --- Tabs ---
   container.querySelectorAll('.tab-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === activeTab));

@@ -6,7 +6,6 @@ let selectedYear = currentYear();
 let filterExplotaciones = new Set();
 let filterCatsIng = new Set();
 let filterCatsGast = new Set();
-let filtersOpen = false;
 
 export async function renderInformes(container) {
   const txs = await getAll('transacciones');
@@ -17,19 +16,19 @@ export async function renderInformes(container) {
   container.innerHTML = `
     <div class="page-header">
       <h1 class="page-title">Informes</h1>
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-        <select class="form-control" id="inf-year" style="width:120px;">
-          ${years.map(y => `<option value="${y}" ${selectedYear === y ? 'selected' : ''}>${y}</option>`).join('')}
-        </select>
-        <button class="btn btn-secondary" id="inf-toggle-filters" style="display:flex;align-items:center;gap:6px;">
-          Filtros <span id="inf-filter-badge"></span> <span id="inf-toggle-icon">${filtersOpen ? '▲' : '▼'}</span>
-        </button>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
         <button class="btn btn-secondary no-print" onclick="window.print()">🖨 Imprimir</button>
       </div>
     </div>
 
-    <div id="inf-filter-panel" style="display:${filtersOpen ? 'block' : 'none'};margin-bottom:12px;">
-      <div id="inf-filter-inner"></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+      <select class="form-control" id="inf-year" style="width:120px;">
+        ${years.map(y => `<option value="${y}" ${selectedYear === y ? 'selected' : ''}>${y}</option>`).join('')}
+      </select>
+      <div id="inf-dropdown-explot" class="fi-dropdown"></div>
+      <div id="inf-dropdown-ing" class="fi-dropdown"></div>
+      <div id="inf-dropdown-gast" class="fi-dropdown"></div>
+      <button class="btn btn-sm btn-secondary" id="inf-clear-filters" style="display:none;">✕ Limpiar</button>
     </div>
 
     <div id="inf-content"></div>`;
@@ -39,13 +38,73 @@ export async function renderInformes(container) {
     loadInformes(container);
   });
 
-  container.querySelector('#inf-toggle-filters').addEventListener('click', () => {
-    filtersOpen = !filtersOpen;
-    container.querySelector('#inf-filter-panel').style.display = filtersOpen ? 'block' : 'none';
-    container.querySelector('#inf-toggle-icon').textContent = filtersOpen ? '▲' : '▼';
+  container.querySelector('#inf-clear-filters').addEventListener('click', () => {
+    filterExplotaciones = new Set();
+    filterCatsIng = new Set();
+    filterCatsGast = new Set();
+    loadInformes(container);
   });
 
+  // Close dropdowns on outside click
+  document.addEventListener('click', _closeAllDropdowns);
+
   await loadInformes(container);
+}
+
+function _closeAllDropdowns(e) {
+  if (!e.target.closest('.fi-dropdown')) {
+    document.querySelectorAll('.fi-dropdown-panel').forEach(p => p.remove());
+    document.querySelectorAll('.fi-dropdown-btn.open').forEach(b => b.classList.remove('open'));
+  }
+}
+
+function buildDropdown(container, wrapperId, label, items, selected, onchange) {
+  const wrapper = container.querySelector('#' + wrapperId);
+  if (!wrapper) return;
+  if (items.length === 0) { wrapper.innerHTML = ''; return; }
+
+  const count = selected.size;
+  const btnLabel = count > 0 ? `${label} <span class="fi-dd-badge">${count}</span>` : label;
+
+  wrapper.innerHTML = `
+    <button class="btn btn-secondary fi-dropdown-btn${count > 0 ? ' fi-dd-active' : ''}" style="position:relative;">
+      ${btnLabel} <span style="margin-left:4px;font-size:0.7rem;">▼</span>
+    </button>`;
+
+  const btn = wrapper.querySelector('button');
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    // Close other dropdowns
+    document.querySelectorAll('.fi-dropdown-panel').forEach(p => {
+      if (!wrapper.contains(p)) p.remove();
+    });
+    document.querySelectorAll('.fi-dropdown-btn.open').forEach(b => {
+      if (b !== btn) b.classList.remove('open');
+    });
+
+    const existingPanel = wrapper.querySelector('.fi-dropdown-panel');
+    if (existingPanel) { existingPanel.remove(); btn.classList.remove('open'); return; }
+
+    btn.classList.add('open');
+    const panel = document.createElement('div');
+    panel.className = 'fi-dropdown-panel';
+    panel.innerHTML = items.map(item => `
+      <label class="fi-dd-item${selected.has(item.id) ? ' fi-dd-checked' : ''}">
+        <input type="checkbox" value="${item.id}" ${selected.has(item.id) ? 'checked' : ''}>
+        <span>${escapeHtml(item.nombre)}</span>
+      </label>`).join('');
+
+    panel.querySelectorAll('input[type=checkbox]').forEach(cb => {
+      cb.addEventListener('change', () => {
+        cb.closest('label').classList.toggle('fi-dd-checked', cb.checked);
+        if (cb.checked) selected.add(cb.value);
+        else selected.delete(cb.value);
+        onchange();
+      });
+    });
+
+    wrapper.appendChild(panel);
+  });
 }
 
 async function loadInformes(container) {
@@ -56,71 +115,18 @@ async function loadInformes(container) {
   const catIngresos = categorias.filter(c => c.tipo === 'ingreso');
   const catGastos = categorias.filter(c => c.tipo === 'gasto');
 
-  // --- Panel de filtros ---
-  const filterInner = container.querySelector('#inf-filter-inner');
-  if (filterInner) {
-    const explotSize = Math.min(Math.max(explotaciones.length, 2), 5);
-    const ingSize = Math.min(Math.max(catIngresos.length, 2), 6);
-    const gastSize = Math.min(Math.max(catGastos.length, 2), 6);
+  // Build dropdowns
+  buildDropdown(container, 'inf-dropdown-explot', 'Explotación',
+    explotaciones, filterExplotaciones, () => loadInformes(container));
+  buildDropdown(container, 'inf-dropdown-ing', 'Cat. ingreso',
+    catIngresos, filterCatsIng, () => loadInformes(container));
+  buildDropdown(container, 'inf-dropdown-gast', 'Cat. gasto',
+    catGastos, filterCatsGast, () => loadInformes(container));
 
-    filterInner.innerHTML = `
-      <div class="card" style="padding:12px;">
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;">
-          ${explotaciones.length > 0 ? `
-          <div class="form-group" style="margin:0;">
-            <label class="form-label">Explotación <span class="text-muted" style="font-weight:normal;">(vacío = todas)</span></label>
-            <select class="form-control" id="inf-explotacion" multiple size="${explotSize}">
-              ${explotaciones.map(e => `<option value="${e.id}" ${filterExplotaciones.has(e.id) ? 'selected' : ''}>${escapeHtml(e.nombre)}</option>`).join('')}
-            </select>
-          </div>` : ''}
-          ${catIngresos.length > 0 ? `
-          <div class="form-group" style="margin:0;">
-            <label class="form-label">Cat. ingreso <span class="text-muted" style="font-weight:normal;">(vacío = todas)</span></label>
-            <select class="form-control" id="inf-cat-ing" multiple size="${ingSize}">
-              ${catIngresos.map(c => `<option value="${c.id}" ${filterCatsIng.has(c.id) ? 'selected' : ''}>${escapeHtml(c.nombre)}</option>`).join('')}
-            </select>
-          </div>` : ''}
-          ${catGastos.length > 0 ? `
-          <div class="form-group" style="margin:0;">
-            <label class="form-label">Cat. gasto <span class="text-muted" style="font-weight:normal;">(vacío = todas)</span></label>
-            <select class="form-control" id="inf-cat-gast" multiple size="${gastSize}">
-              ${catGastos.map(c => `<option value="${c.id}" ${filterCatsGast.has(c.id) ? 'selected' : ''}>${escapeHtml(c.nombre)}</option>`).join('')}
-            </select>
-          </div>` : ''}
-        </div>
-        <div style="margin-top:10px;">
-          <button class="btn btn-sm btn-secondary" id="inf-clear-filters">Limpiar filtros</button>
-        </div>
-      </div>`;
-
-    filterInner.querySelector('#inf-explotacion')?.addEventListener('change', e => {
-      filterExplotaciones = new Set([...e.target.selectedOptions].map(o => o.value));
-      loadInformes(container);
-    });
-    filterInner.querySelector('#inf-cat-ing')?.addEventListener('change', e => {
-      filterCatsIng = new Set([...e.target.selectedOptions].map(o => o.value));
-      loadInformes(container);
-    });
-    filterInner.querySelector('#inf-cat-gast')?.addEventListener('change', e => {
-      filterCatsGast = new Set([...e.target.selectedOptions].map(o => o.value));
-      loadInformes(container);
-    });
-    filterInner.querySelector('#inf-clear-filters').addEventListener('click', () => {
-      filterExplotaciones = new Set();
-      filterCatsIng = new Set();
-      filterCatsGast = new Set();
-      loadInformes(container);
-    });
-  }
-
-  // --- Badge filtros activos ---
+  // Limpiar button visibility
   const activeCount = filterExplotaciones.size + filterCatsIng.size + filterCatsGast.size;
-  const badge = container.querySelector('#inf-filter-badge');
-  if (badge) {
-    badge.innerHTML = activeCount > 0
-      ? `<span class="badge" style="background:var(--color-primary);color:#fff;">${activeCount}</span>`
-      : '';
-  }
+  const clearBtn = container.querySelector('#inf-clear-filters');
+  if (clearBtn) clearBtn.style.display = activeCount > 0 ? '' : 'none';
 
   // --- Aplicar filtros ---
   let txYear = transacciones.filter(t => getYear(t.fecha) === selectedYear);
