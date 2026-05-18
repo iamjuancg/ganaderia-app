@@ -6,7 +6,7 @@ import { openModal, confirmModal } from '../utils/modal.js';
 import { updateExplotacionName } from '../utils/appstate.js';
 import {
   gdriveIsConfigured, gdriveIsAuthenticated, gdriveHasSavedConnection,
-  gdriveGetLastSync, gdriveSignIn, gdriveSignOut,
+  gdriveGetLastSync, gdriveSignIn, gdriveSignInSilent, gdriveSignOut,
   gdriveUpload, gdriveDownload, gdriveInit
 } from '../utils/gdrive.js';
 
@@ -41,8 +41,12 @@ function renderDriveSection() {
         </div>
       ` : `
         <p class="text-muted text-small" style="margin-bottom:12px;">Sincroniza tus datos entre ordenador y móvil a través de Google Drive.</p>
-        ${hasSaved ? '<p class="text-muted text-small" style="margin-bottom:12px;color:var(--color-danger)">La sesión expiró. Vuelve a conectar para sincronizar.</p>' : ''}
-        <button class="btn btn-primary" id="drive-connect">🔗 Conectar con Google Drive</button>
+        ${hasSaved ? `
+          <p class="text-muted text-small" style="margin-bottom:12px;" id="drive-status-msg">Reconectando...</p>
+          <button class="btn btn-primary" id="drive-connect" style="display:none;">🔗 Reconectar con Google Drive</button>
+        ` : `
+          <button class="btn btn-primary" id="drive-connect">🔗 Conectar con Google Drive</button>
+        `}
       `}
     </div>`;
 }
@@ -229,7 +233,8 @@ export async function renderAjustes(container) {
     container.querySelector('#drive-connect')?.addEventListener('click', async () => {
       try {
         await gdriveInit();
-        await gdriveSignIn();
+        // intentar silencioso primero, si falla hacer popup
+        try { await gdriveSignInSilent(); } catch { await gdriveSignIn(); }
         const data = await exportAll();
         await gdriveUpload(data);
         showToast('Conectado y backup subido a Drive');
@@ -239,6 +244,27 @@ export async function renderAjustes(container) {
         console.error(e);
       }
     });
+
+    // reconexión silenciosa automática si ya había conexión previa
+    if (gdriveHasSavedConnection() && !gdriveIsAuthenticated()) {
+      gdriveInit().then(() => gdriveSignInSilent()).then(async () => {
+        const statusMsg = container.querySelector('#drive-status-msg');
+        const connectBtn = container.querySelector('#drive-connect');
+        if (!statusMsg) return; // ya se re-renderizó
+        // silencioso funcionó: subir/descargar y mostrar como conectado
+        try {
+          const data = await exportAll();
+          await gdriveUpload(data);
+        } catch {}
+        refreshDriveSection();
+      }).catch(() => {
+        // silencioso falló: mostrar botón de reconectar
+        const statusMsg = container.querySelector('#drive-status-msg');
+        const connectBtn = container.querySelector('#drive-connect');
+        if (statusMsg) statusMsg.textContent = 'Sesión expirada.';
+        if (connectBtn) connectBtn.style.display = '';
+      });
+    }
 
     container.querySelector('#drive-upload')?.addEventListener('click', async () => {
       try {
