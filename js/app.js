@@ -1,7 +1,7 @@
 import { openDB, exportAll, importAll } from './db/database.js';
 import { seedDefaults } from './db/seed.js';
 import { updateExplotacionName } from './utils/appstate.js';
-import { gdriveInit, gdriveAutoSync } from './utils/gdrive.js';
+import { gdriveInit, gdriveAutoSync, gdriveHandleRedirectToken } from './utils/gdrive.js';
 import { renderDashboard } from './views/dashboard.js';
 import { renderAnimales } from './views/animales.js';
 import { renderEventos } from './views/eventos.js';
@@ -30,7 +30,15 @@ async function init() {
     navigator.serviceWorker.register('./sw.js').catch(() => {});
   }
 
-  gdriveInit().then(() => gdriveAutoSync(importAll, exportAll));
+  gdriveInit().then(async () => {
+    // En iOS PWA el token llega como redirect — extraerlo antes de cualquier otra cosa
+    const fromRedirect = gdriveHandleRedirectToken();
+    await gdriveAutoSync(importAll, exportAll);
+    if (fromRedirect) {
+      // Navegar a ajustes para que el usuario vea que está conectado
+      navigate('ajustes');
+    }
+  });
 }
 
 function setupSidebarToggle() {

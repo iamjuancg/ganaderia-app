@@ -27,6 +27,11 @@ export function gdriveGetLastSync() {
   return localStorage.getItem(LS_LAST_SYNC);
 }
 
+// iOS PWA (home screen) bloquea popups — hay que usar redirect
+function isIOSStandalone() {
+  return !!navigator.standalone;
+}
+
 async function loadGIS() {
   if (window.google?.accounts?.oauth2) return;
   await new Promise((resolve, reject) => {
@@ -41,11 +46,28 @@ async function loadGIS() {
 export async function gdriveInit() {
   if (!GDRIVE_CLIENT_ID) return;
   await loadGIS();
+
+  const ios = isIOSStandalone();
   _tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: GDRIVE_CLIENT_ID,
     scope: SCOPE,
+    ux_mode: ios ? 'redirect' : 'popup',
+    redirect_uri: ios ? (window.location.origin + window.location.pathname) : undefined,
     callback: () => {}
   });
+}
+
+// Llama esto al arrancar para recuperar el token de un redirect OAuth en iOS
+export function gdriveHandleRedirectToken() {
+  const hash = window.location.hash;
+  if (!hash || !hash.includes('access_token=')) return false;
+  const params = new URLSearchParams(hash.substring(1));
+  const token = params.get('access_token');
+  if (!token) return false;
+  _accessToken = token;
+  localStorage.setItem(LS_CONNECTED, '1');
+  history.replaceState(null, '', window.location.pathname); // limpia el hash
+  return true;
 }
 
 // ── Auth ───────────────────────────────────────────────────────────────────
@@ -63,6 +85,12 @@ function requestToken(silent) {
 }
 
 export async function gdriveSignIn() {
+  if (isIOSStandalone()) {
+    // En iOS PWA, requestAccessToken redirige la página — el Promise nunca resuelve
+    localStorage.setItem(LS_CONNECTED, '1'); // marcar intención de conexión
+    _tokenClient.requestAccessToken({ prompt: 'select_account' });
+    return; // la página redirige a Google aquí
+  }
   await requestToken(false);
   localStorage.setItem(LS_CONNECTED, '1');
 }
@@ -168,7 +196,7 @@ export async function gdriveAutoSync(importAllFn, exportAllFn) {
   try {
     await gdriveSignInSilent();
   } catch {
-    return; // token silencioso falló, no interrumpir al usuario
+    return;
   }
 
   try {
