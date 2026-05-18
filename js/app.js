@@ -1,6 +1,6 @@
 import { openDB, exportAll, importAll, replaceAll } from './db/database.js';
 import { seedDefaults } from './db/seed.js';
-import { updateExplotacionName } from './utils/appstate.js';
+import { updateExplotacionName, updateTitularBar } from './utils/appstate.js';
 import { gdriveInit, gdriveAutoSync, gdriveHandleRedirectToken } from './utils/gdrive.js';
 import { renderDashboard } from './views/dashboard.js';
 import { renderAnimales } from './views/animales.js';
@@ -22,6 +22,7 @@ async function init() {
   await openDB();
   await seedDefaults();
   await updateExplotacionName();
+  await updateTitularBar();
   setupRouter();
   setupSidebarToggle();
   navigate(location.hash.slice(1) || 'dashboard');

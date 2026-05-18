@@ -539,6 +539,24 @@ canvas { display: block; width: 100% !important; }
 .recent-event-main { flex: 1; }
 .recent-event-date { font-size: 0.78rem; color: var(--color-text-muted); white-space: nowrap; }
 
+/* ── Titular bar ── */
+.titular-bar {
+  background: linear-gradient(135deg, var(--color-primary-dark) 0%, var(--color-primary) 100%);
+  color: #fff;
+  border-radius: var(--radius);
+  padding: 10px 16px;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.88rem;
+  flex-wrap: wrap;
+}
+.titular-bar-icon { font-size: 1rem; flex-shrink: 0; }
+.titular-bar-nombre { font-weight: 700; font-size: 0.93rem; }
+.titular-bar-sep { opacity: 0.45; }
+.titular-bar-nif { opacity: 0.75; font-size: 0.82rem; }
+
 /* ── Ajustes ── */
 .settings-section { margin-bottom: 32px; }
 .settings-section-title {

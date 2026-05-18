@@ -3,7 +3,7 @@ import { uid, escapeHtml, CATEGORIAS_DEFECTO, downloadFile, csvRow, formatEur } 
 import { formatDate } from '../utils/date.js';
 import { showToast } from '../utils/toast.js';
 import { openModal, confirmModal } from '../utils/modal.js';
-import { updateExplotacionName } from '../utils/appstate.js';
+import { updateExplotacionName, updateTitularBar } from '../utils/appstate.js';
 import {
   gdriveIsConfigured, gdriveIsAuthenticated, gdriveHasSavedConnection,
   gdriveGetLastSync, gdriveSignIn, gdriveSignInSilent, gdriveSignOut,
@@ -53,12 +53,34 @@ function renderDriveSection() {
 }
 
 export async function renderAjustes(container) {
-  const explotacion = await getSetting('explotacion_nombre') ?? '';
+  const [explotacion, titularNombre, titularNif] = await Promise.all([
+    getSetting('explotacion_nombre'),
+    getSetting('titular_nombre'),
+    getSetting('titular_nif'),
+  ]);
   const [categorias, explotaciones, empleados] = await Promise.all([getAll('categorias'), getAll('explotaciones'), getAll('empleados')]);
   let ssPct = parseFloat(await getSetting('ss_porcentaje')) || 30;
 
   container.innerHTML = `
     <div class="page-header"><h1 class="page-title">Ajustes</h1></div>
+
+    <!-- Titular -->
+    <div class="settings-section">
+      <div class="settings-section-title">Titular</div>
+      <div class="card">
+        <div class="grid-2">
+          <div class="form-group">
+            <label class="form-label">Nombre / Razón social</label>
+            <input class="form-control" id="aj-titular-nombre" value="${escapeHtml(titularNombre ?? '')}" placeholder="Ej: Juan García López">
+          </div>
+          <div class="form-group">
+            <label class="form-label">NIF / CIF</label>
+            <input class="form-control" id="aj-titular-nif" value="${escapeHtml(titularNif ?? '')}" placeholder="Ej: 12345678X">
+          </div>
+        </div>
+        <button class="btn btn-primary" id="aj-save-titular">Guardar titular</button>
+      </div>
+    </div>
 
     <!-- Explotación -->
     <div class="settings-section">
@@ -66,7 +88,7 @@ export async function renderAjustes(container) {
       <div class="card">
         <div class="form-group">
           <label class="form-label">Nombre de la explotación</label>
-          <input class="form-control" id="aj-nombre" value="${escapeHtml(explotacion)}" placeholder="Ej: Ganadería González">
+          <input class="form-control" id="aj-nombre" value="${escapeHtml(explotacion ?? '')}" placeholder="Ej: Ganadería González">
         </div>
         <button class="btn btn-primary" id="aj-save-nombre">Guardar nombre</button>
       </div>
@@ -564,6 +586,15 @@ export async function renderAjustes(container) {
       renderExplots();
       showToast('Explotación añadida');
     });
+  });
+
+  container.querySelector('#aj-save-titular').addEventListener('click', async () => {
+    const nombre = container.querySelector('#aj-titular-nombre').value.trim();
+    const nif = container.querySelector('#aj-titular-nif').value.trim();
+    await setSetting('titular_nombre', nombre || null);
+    await setSetting('titular_nif', nif || null);
+    await updateTitularBar();
+    showToast('Titular guardado');
   });
 
   container.querySelector('#aj-save-nombre').addEventListener('click', async () => {

@@ -1,1 +1,1 @@
-export const APP_VERSION = 'lot-price-fix';
+export const APP_VERSION = 'titular-bar';
