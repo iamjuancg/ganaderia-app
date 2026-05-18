@@ -309,7 +309,7 @@ async function renderBulkEventoForm(slot, animals, onSave) {
       extra.innerHTML = `<div class="form-group"><label class="form-label">Peso (kg)</label><input type="number" inputmode="decimal" class="form-control" id="bevf-peso" min="0" step="0.1"></div>`;
     } else if (['venta', 'compra'].includes(tipo)) {
       extra.innerHTML = `<div class="grid-2">
-        <div class="form-group"><label class="form-label">Importe por animal (€)</label><input type="number" inputmode="decimal" class="form-control" id="bevf-importe" min="0" step="0.01"></div>
+        <div class="form-group"><label class="form-label">Importe total lote (€)</label><input type="number" inputmode="decimal" class="form-control" id="bevf-importe" min="0" step="0.01"></div>
         <div class="form-group"><label class="form-label">${tipo === 'venta' ? 'Comprador' : 'Vendedor'}</label><input class="form-control" id="bevf-contraparte"></div>
       </div>`;
     } else {
@@ -335,24 +335,27 @@ async function renderBulkEventoForm(slot, animals, onSave) {
     const fechaISO = new Date(fecha).toISOString();
     const batchId = uid();
 
-    for (const anim of animals) {
-      let transaccionId = null;
-      if ((tipo === 'venta' || tipo === 'compra') && importe) {
-        transaccionId = uid();
-        await put('transacciones', {
-          id: transaccionId,
-          tipo: tipo === 'venta' ? 'ingreso' : 'gasto',
-          importe,
-          fecha: fechaISO,
-          categoriaId: tipo === 'venta' ? 'sys-venta-animales' : 'sys-compra-animales',
-          descripcion: `${tipo === 'venta' ? 'Venta' : 'Compra'}: ${anim.crotal}${anim.nombre ? ' — ' + anim.nombre : ''}`,
-          referencia: null,
-          explotacionId: anim.explotacionId ?? null,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        });
-      }
+    let batchTransaccionId = null;
+    if ((tipo === 'venta' || tipo === 'compra') && importe) {
+      batchTransaccionId = uid();
+      const firstAnim = animals[0];
+      await put('transacciones', {
+        id: batchTransaccionId,
+        tipo: tipo === 'venta' ? 'ingreso' : 'gasto',
+        importe,
+        fecha: fechaISO,
+        categoriaId: tipo === 'venta' ? 'sys-venta-animales' : 'sys-compra-animales',
+        descripcion: `${tipo === 'venta' ? 'Venta' : 'Compra'} lote: ${animals.length} animales`,
+        referencia: null,
+        explotacionId: firstAnim.explotacionId ?? null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+    }
+    const importePerAnimal = importe && animals.length > 0 ? importe / animals.length : null;
 
+    for (let i = 0; i < animals.length; i++) {
+      const anim = animals[i];
       await put('eventos', {
         id: uid(),
         animalId: anim.id,
@@ -360,9 +363,9 @@ async function renderBulkEventoForm(slot, animals, onSave) {
         fecha: fechaISO,
         descripcion,
         peso,
-        importe,
+        importe: importePerAnimal,
         contraparte,
-        transaccionId,
+        transaccionId: i === 0 ? batchTransaccionId : null,
         batchId,
         createdAt: new Date().toISOString(),
       });

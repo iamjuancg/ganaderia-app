@@ -314,8 +314,9 @@ async function renderBatchEditForm(slot, events, allAnimales, onSave) {
     if (tipo === 'peso') {
       extra.innerHTML = `<div class="form-group"><label class="form-label">Peso (kg)</label><input type="number" inputmode="decimal" class="form-control" id="bef-peso" min="0" step="0.1" value="${sameType && firstEv.peso != null ? firstEv.peso : ''}"></div>`;
     } else if (['venta', 'compra'].includes(tipo)) {
+      const totalLote = sameType ? events.reduce((s, e) => s + (e.importe || 0), 0) : 0;
       extra.innerHTML = `<div class="grid-2">
-        <div class="form-group"><label class="form-label">Importe por animal (€)</label><input type="number" inputmode="decimal" class="form-control" id="bef-importe" min="0" step="0.01" value="${sameType && firstEv.importe != null ? firstEv.importe : ''}"></div>
+        <div class="form-group"><label class="form-label">Importe total lote (€)</label><input type="number" inputmode="decimal" class="form-control" id="bef-importe" min="0" step="0.01" value="${totalLote > 0 ? parseFloat(totalLote.toFixed(2)) : ''}"></div>
         <div class="form-group"><label class="form-label">${tipo === 'venta' ? 'Comprador' : 'Vendedor'}</label><input class="form-control" id="bef-contraparte" value="${sameType ? escapeHtml(firstEv.contraparte ?? '') : ''}"></div>
       </div>`;
     } else {
@@ -337,43 +338,55 @@ async function renderBatchEditForm(slot, events, allAnimales, onSave) {
 
     const freshAnimales = await getAll('animales');
 
+    // First pass: delete removed events and their transactions
     for (const ev of events) {
-      if (toRemove.has(ev.id)) {
-        await remove('eventos', ev.id);
-        if (ev.transaccionId) await remove('transacciones', ev.transaccionId);
-        if ((ev.tipo === 'venta' || ev.tipo === 'muerte') && ev.animalId) {
-          const anim = freshAnimales.find(a => a.id === ev.animalId);
-          const expectedStatus = ev.tipo === 'venta' ? 'vendido' : 'muerto';
-          if (anim && anim.status === expectedStatus) {
-            await put('animales', { ...anim, status: 'activo', updatedAt: new Date().toISOString() });
-          }
+      if (!toRemove.has(ev.id)) continue;
+      await remove('eventos', ev.id);
+      if (ev.transaccionId) await remove('transacciones', ev.transaccionId);
+      if ((ev.tipo === 'venta' || ev.tipo === 'muerte') && ev.animalId) {
+        const anim = freshAnimales.find(a => a.id === ev.animalId);
+        const expectedStatus = ev.tipo === 'venta' ? 'vendido' : 'muerto';
+        if (anim && anim.status === expectedStatus) {
+          await put('animales', { ...anim, status: 'activo', updatedAt: new Date().toISOString() });
         }
-        continue;
       }
+    }
 
+    const remaining = events.filter(ev => !toRemove.has(ev.id));
+
+    // Delete all existing transactions from remaining events (will recreate one)
+    for (const ev of remaining) {
+      if (ev.transaccionId) await remove('transacciones', ev.transaccionId);
+    }
+
+    // Create ONE transaction for the total lot amount
+    let batchTransaccionId = null;
+    if ((tipo === 'venta' || tipo === 'compra') && importe && remaining.length > 0) {
+      batchTransaccionId = uid();
+      const firstAnim = freshAnimales.find(a => a.id === remaining[0].animalId);
+      await put('transacciones', {
+        id: batchTransaccionId,
+        tipo: tipo === 'venta' ? 'ingreso' : 'gasto',
+        importe,
+        fecha: fechaISO,
+        categoriaId: tipo === 'venta' ? 'sys-venta-animales' : 'sys-compra-animales',
+        descripcion: `${tipo === 'venta' ? 'Venta' : 'Compra'} lote: ${remaining.length} animales`,
+        referencia: null,
+        explotacionId: firstAnim?.explotacionId ?? null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
+    const importePerAnimal = importe && remaining.length > 0 ? importe / remaining.length : null;
+
+    // Second pass: update remaining events
+    for (let i = 0; i < remaining.length; i++) {
+      const ev = remaining[i];
       const anim = freshAnimales.find(a => a.id === ev.animalId);
-      let transaccionId = ev.transaccionId;
+      const transaccionId = i === 0 ? batchTransaccionId : null;
 
-      if ((tipo === 'venta' || tipo === 'compra') && importe) {
-        if (!transaccionId) transaccionId = uid();
-        await put('transacciones', {
-          id: transaccionId,
-          tipo: tipo === 'venta' ? 'ingreso' : 'gasto',
-          importe,
-          fecha: fechaISO,
-          categoriaId: tipo === 'venta' ? 'sys-venta-animales' : 'sys-compra-animales',
-          descripcion: `${tipo === 'venta' ? 'Venta' : 'Compra'}: ${anim?.crotal ?? ''}${anim?.nombre ? ' — ' + anim.nombre : ''}`,
-          referencia: null,
-          explotacionId: anim?.explotacionId ?? null,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        });
-      } else if (transaccionId) {
-        await remove('transacciones', transaccionId);
-        transaccionId = null;
-      }
-
-      await put('eventos', { ...ev, tipo, fecha: fechaISO, descripcion, peso, importe, contraparte, transaccionId, updatedAt: new Date().toISOString() });
+      await put('eventos', { ...ev, tipo, fecha: fechaISO, descripcion, peso, importe: importePerAnimal, contraparte, transaccionId, updatedAt: new Date().toISOString() });
 
       if (anim) {
         if (tipo === 'peso' && peso) {

@@ -1,1 +1,1 @@
-export const APP_VERSION = 'fccb5ba';
+export const APP_VERSION = 'lot-price-fix';
