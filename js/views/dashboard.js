@@ -2,7 +2,7 @@ import { getAll } from '../db/database.js';
 import { formatEur, eventoIcon, eventoLabel } from '../utils/format.js';
 import { formatDate, currentYear, getYear, getYearMonth } from '../utils/date.js';
 import { openModal } from '../utils/modal.js';
-import { getActiveTitularId } from '../utils/appstate.js';
+import { getActiveTitularId, renderTitularBar } from '../utils/appstate.js';
 import { renderAnimalForm } from './animales.js';
 import { renderTransaccionForm } from './finanzas.js';
 
@@ -116,6 +116,7 @@ export async function renderDashboard(container) {
         </div>`}
   `;
 
+  await renderTitularBar(container);
   drawBarChart(monthData);
 
   container.querySelector('#qa-nuevo-animal').addEventListener('click', () => {

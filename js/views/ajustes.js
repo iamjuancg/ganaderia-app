@@ -161,6 +161,8 @@ export async function renderAjustes(container) {
       </div>
     </div>`;
 
+  await renderTitularBar(container);
+
   let catTab = 'ingreso';
   const renderCats = () => {
     const list = container.querySelector('#cat-list');
@@ -606,7 +608,7 @@ export async function renderAjustes(container) {
       if (idx !== -1) titulares[idx] = record; else titulares.push(record);
       overlay.remove();
       renderTitulares();
-      await renderTitularBar();
+      await renderTitularBar(container);
       showToast(isNew ? 'Titular añadido' : 'Titular actualizado');
     });
   };
@@ -648,7 +650,7 @@ export async function renderAjustes(container) {
             await remove('titulares', id);
             titulares.splice(titulares.findIndex(t => t.id === id), 1);
             renderTitulares();
-            await renderTitularBar();
+            await renderTitularBar(container);
             showToast('Titular eliminado');
           });
           return;
@@ -707,7 +709,7 @@ export async function renderAjustes(container) {
           await remove('titulares', id);
           titulares.splice(titulares.findIndex(t => t.id === id), 1);
           renderTitulares();
-          await renderTitularBar();
+          await renderTitularBar(container);
           showToast('Titular eliminado');
         });
       });

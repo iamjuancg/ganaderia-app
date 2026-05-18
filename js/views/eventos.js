@@ -4,7 +4,7 @@ import { formatDate, todayISO } from '../utils/date.js';
 import { showToast } from '../utils/toast.js';
 import { openModal, confirmModal } from '../utils/modal.js';
 import { buildDropdown, initDropdownCloser } from '../utils/dropdown.js';
-import { getActiveTitularId } from '../utils/appstate.js';
+import { getActiveTitularId, renderTitularBar } from '../utils/appstate.js';
 
 let filterTipos = new Set(), filterFechaDesde = '', filterFechaHasta = '';
 let filterExplotaciones = new Set();
@@ -26,6 +26,7 @@ export async function renderEventos(container) {
     </div>
     <div id="eventos-list"></div>`;
 
+  await renderTitularBar(container);
   const refresh = () => loadEventos(container);
 
   container.querySelector('#ev-filter-desde').addEventListener('change', e => { filterFechaDesde = e.target.value; refresh(); });

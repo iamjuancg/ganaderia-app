@@ -3,7 +3,7 @@ import { uid, ESPECIES, TIPOS_EVENTO, escapeHtml, formatEur, eventoLabel } from 
 import { formatDate, todayISO } from '../utils/date.js';
 import { showToast } from '../utils/toast.js';
 import { openModal, confirmModal } from '../utils/modal.js';
-import { getActiveTitularId } from '../utils/appstate.js';
+import { getActiveTitularId, renderTitularBar } from '../utils/appstate.js';
 import { renderEventoForm } from './eventos.js';
 
 let sortField = 'crotal', sortDir = 1;
@@ -57,6 +57,7 @@ export async function renderAnimales(container) {
       <button class="btn" id="btn-desel-all" style="background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3);">✕ Deseleccionar</button>
     </div>`;
 
+  await renderTitularBar(container);
   const refresh = () => loadAnimales(container);
 
   container.querySelector('#btn-nuevo-animal').addEventListener('click', () => {

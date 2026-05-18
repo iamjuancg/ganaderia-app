@@ -2,6 +2,7 @@ import { getAll } from '../db/database.js';
 import { formatEur, escapeHtml } from '../utils/format.js';
 import { currentYear, getYear } from '../utils/date.js';
 import { buildDropdown, initDropdownCloser } from '../utils/dropdown.js';
+import { renderTitularBar } from '../utils/appstate.js';
 
 let selectedYear = currentYear();
 let filterExplotaciones = new Set();
@@ -33,6 +34,8 @@ export async function renderInformes(container) {
     </div>
 
     <div id="inf-content"></div>`;
+
+  await renderTitularBar(container);
 
   container.querySelector('#inf-year').addEventListener('change', e => {
     selectedYear = Number(e.target.value);
