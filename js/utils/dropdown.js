@@ -46,7 +46,10 @@ export function buildDropdown(container, wrapperId, label, items, selected, onch
     const panel = document.createElement('div');
     panel.className = 'fi-dropdown-panel';
     panel.innerHTML =
-      `<div class="fi-dd-actions">
+      `<div style="padding:6px 8px;border-bottom:1px solid var(--color-border);">
+        <input type="text" class="fi-dd-search-input form-control" placeholder="Buscar…" style="height:30px;font-size:0.83rem;" autocomplete="off">
+      </div>
+      <div class="fi-dd-actions">
         <button class="fi-dd-selall">Seleccionar todo</button>
         <button class="fi-dd-deselall">Deseleccionar todo</button>
       </div>` +
@@ -61,8 +64,20 @@ export function buildDropdown(container, wrapperId, label, items, selected, onch
 
     const checkboxes = panel.querySelectorAll('input[type=checkbox]');
 
+    const searchInput = panel.querySelector('.fi-dd-search-input');
+    searchInput.addEventListener('click', e => e.stopPropagation());
+    searchInput.addEventListener('input', () => {
+      const q = searchInput.value.toLowerCase().trim();
+      panel.querySelectorAll('.fi-dd-item').forEach(lbl => {
+        const text = lbl.querySelector('span')?.textContent?.toLowerCase() ?? '';
+        lbl.style.display = text.includes(q) ? '' : 'none';
+      });
+    });
+
+    const visibleCbs = () => [...checkboxes].filter(cb => cb.closest('label').style.display !== 'none');
+
     const setAll = (checked) => {
-      checkboxes.forEach(cb => {
+      visibleCbs().forEach(cb => {
         cb.checked = checked;
         cb.closest('label').classList.toggle('fi-dd-checked', checked);
         if (checked) pending.add(cb.value);
