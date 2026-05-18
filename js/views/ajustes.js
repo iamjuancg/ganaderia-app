@@ -188,26 +188,98 @@ export async function renderAjustes(container) {
         const id = btn.dataset.explodel;
         const idx = explotaciones.findIndex(e => e.id === id);
         if (idx === -1) return;
+        const explot = explotaciones[idx];
 
         const [animales, transacciones] = await Promise.all([getAll('animales'), getAll('transacciones')]);
-        const nAnimales = animales.filter(a => a.explotacionId === id).length;
-        const nTx = transacciones.filter(t => t.explotacionId === id).length;
+        const afAnimales = animales.filter(a => a.explotacionId === id);
+        const afTx = transacciones.filter(t => t.explotacionId === id);
+        const otras = explotaciones.filter(e => e.id !== id);
+
+        // Sin registros asociados: confirmación simple
+        if (afAnimales.length === 0 && afTx.length === 0) {
+          confirmModal(`¿Eliminar la explotación <strong>${escapeHtml(explot.nombre)}</strong>?`, async () => {
+            await remove('explotaciones', id);
+            explotaciones.splice(idx, 1);
+            renderExplots();
+            showToast('Explotación eliminada');
+          });
+          return;
+        }
 
         const detalle = [
-          nAnimales > 0 ? `${nAnimales} animal${nAnimales !== 1 ? 'es' : ''}` : '',
-          nTx > 0 ? `${nTx} transacción${nTx !== 1 ? 'es' : ''}` : '',
+          afAnimales.length > 0 ? `${afAnimales.length} animal${afAnimales.length !== 1 ? 'es' : ''}` : '',
+          afTx.length > 0 ? `${afTx.length} transacción${afTx.length !== 1 ? 'es' : ''}` : '',
         ].filter(Boolean).join(' y ');
 
-        const msg = detalle
-          ? `¿Eliminar la explotación <strong>${escapeHtml(explotaciones[idx].nombre)}</strong>?<br><br>${detalle} quedarán sin explotación asignada (no se borran).`
-          : `¿Eliminar la explotación <strong>${escapeHtml(explotaciones[idx].nombre)}</strong>?`;
+        const { overlay } = openModal({
+          title: `Eliminar: ${explot.nombre}`,
+          bodyHtml: `
+            <p>Esta explotación tiene <strong>${detalle}</strong> asignados. ¿Qué quieres hacer con ellos?</p>
+            <div style="display:flex;flex-direction:column;gap:14px;margin-top:16px;">
+              <label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer;">
+                <input type="radio" name="del-opt" value="unassign" checked style="margin-top:3px;flex-shrink:0;">
+                <span>
+                  <strong>Dejar sin asignar</strong><br>
+                  <span class="text-muted text-small">Se conservan todos los registros pero sin explotación.</span>
+                </span>
+              </label>
+              ${otras.length > 0 ? `
+              <label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer;" id="opt-move-label">
+                <input type="radio" name="del-opt" value="move" style="margin-top:3px;flex-shrink:0;">
+                <span>
+                  <strong>Mover a otra explotación</strong><br>
+                  <select class="form-control" id="del-target" style="margin-top:6px;" disabled>
+                    ${otras.map(e => `<option value="${e.id}">${escapeHtml(e.nombre)}</option>`).join('')}
+                  </select>
+                </span>
+              </label>` : ''}
+              <label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer;">
+                <input type="radio" name="del-opt" value="delete" style="margin-top:3px;flex-shrink:0;">
+                <span>
+                  <strong style="color:var(--color-danger);">Borrar todo lo asociado</strong><br>
+                  <span class="text-muted text-small">Se eliminarán los animales, sus eventos y las transacciones de esta explotación.</span>
+                </span>
+              </label>
+            </div>`,
+          footerHtml: `
+            <button class="btn btn-secondary" id="del-cancel">Cancelar</button>
+            <button class="btn btn-danger" id="del-confirm">Eliminar explotación</button>`
+        });
 
-        confirmModal(msg, async () => {
-          // Desasignar animales y transacciones afectados
-          await Promise.all([
-            ...animales.filter(a => a.explotacionId === id).map(a => put('animales', { ...a, explotacionId: null })),
-            ...transacciones.filter(t => t.explotacionId === id).map(t => put('transacciones', { ...t, explotacionId: null })),
-          ]);
+        overlay.querySelectorAll('[name="del-opt"]').forEach(radio => {
+          radio.addEventListener('change', () => {
+            const sel = overlay.querySelector('#del-target');
+            if (sel) sel.disabled = radio.value !== 'move' || !radio.checked;
+          });
+        });
+
+        overlay.querySelector('#del-cancel').addEventListener('click', () => overlay.remove());
+
+        overlay.querySelector('#del-confirm').addEventListener('click', async () => {
+          const action = overlay.querySelector('[name="del-opt"]:checked')?.value;
+          const targetId = overlay.querySelector('#del-target')?.value ?? null;
+          overlay.remove();
+
+          if (action === 'unassign') {
+            await Promise.all([
+              ...afAnimales.map(a => put('animales', { ...a, explotacionId: null })),
+              ...afTx.map(t => put('transacciones', { ...t, explotacionId: null })),
+            ]);
+          } else if (action === 'move' && targetId) {
+            await Promise.all([
+              ...afAnimales.map(a => put('animales', { ...a, explotacionId: targetId })),
+              ...afTx.map(t => put('transacciones', { ...t, explotacionId: targetId })),
+            ]);
+          } else if (action === 'delete') {
+            const eventos = await getAll('eventos');
+            const animalIds = new Set(afAnimales.map(a => a.id));
+            await Promise.all([
+              ...afAnimales.map(a => remove('animales', a.id)),
+              ...eventos.filter(e => animalIds.has(e.animalId)).map(e => remove('eventos', e.id)),
+              ...afTx.map(t => remove('transacciones', t.id)),
+            ]);
+          }
+
           await remove('explotaciones', id);
           explotaciones.splice(idx, 1);
           renderExplots();
