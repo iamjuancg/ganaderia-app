@@ -302,7 +302,8 @@ export async function renderAjustes(container) {
           if (!result) { showToast('No hay backup en Drive', 'error'); return; }
           await replaceAll(result.data);
           const nAnimales = result.data.animales?.length ?? 0;
-          showToast(`Drive: ${nAnimales} animales descargados`);
+          const nTx = result.data.transacciones?.length ?? 0;
+          showToast(`Drive: ${nAnimales} animales, ${nTx} transacciones`);
           refreshDriveSection();
         } catch (e) {
           showToast('Error al descargar de Drive', 'error');
