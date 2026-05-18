@@ -7,7 +7,7 @@ import { updateExplotacionName } from '../utils/appstate.js';
 import {
   gdriveIsConfigured, gdriveIsAuthenticated, gdriveHasSavedConnection,
   gdriveGetLastSync, gdriveSignIn, gdriveSignInSilent, gdriveSignOut,
-  gdriveUpload, gdriveDownload, gdriveInit
+  gdriveUpload, gdriveDownload, gdriveGetFileInfo, gdriveInit
 } from '../utils/gdrive.js';
 
 function renderDriveSection() {
@@ -233,11 +233,18 @@ export async function renderAjustes(container) {
     container.querySelector('#drive-connect')?.addEventListener('click', async () => {
       try {
         await gdriveInit();
-        // intentar silencioso primero, si falla hacer popup
         try { await gdriveSignInSilent(); } catch { await gdriveSignIn(); }
-        const data = await exportAll();
-        await gdriveUpload(data);
-        showToast('Conectado y backup subido a Drive');
+        // si Drive ya tiene datos, descargar; si no, subir los locales
+        const fileInfo = await gdriveGetFileInfo();
+        if (fileInfo) {
+          const result = await gdriveDownload();
+          if (result) await importAll(result.data);
+          showToast('Conectado. Datos descargados de Drive');
+        } else {
+          const data = await exportAll();
+          await gdriveUpload(data);
+          showToast('Conectado y backup subido a Drive');
+        }
         refreshDriveSection();
       } catch (e) {
         showToast('Error al conectar con Drive', 'error');
@@ -248,17 +255,21 @@ export async function renderAjustes(container) {
     // reconexión silenciosa automática si ya había conexión previa
     if (gdriveHasSavedConnection() && !gdriveIsAuthenticated()) {
       gdriveInit().then(() => gdriveSignInSilent()).then(async () => {
-        const statusMsg = container.querySelector('#drive-status-msg');
-        const connectBtn = container.querySelector('#drive-connect');
-        if (!statusMsg) return; // ya se re-renderizó
-        // silencioso funcionó: subir/descargar y mostrar como conectado
+        if (!container.querySelector('#drive-status-msg')) return;
         try {
-          const data = await exportAll();
-          await gdriveUpload(data);
+          const fileInfo = await gdriveGetFileInfo();
+          if (fileInfo) {
+            const lastSync = gdriveGetLastSync();
+            if (!lastSync || new Date(fileInfo.modifiedTime) > new Date(lastSync)) {
+              const result = await gdriveDownload();
+              if (result) await importAll(result.data);
+            } else {
+              await gdriveUpload(await exportAll());
+            }
+          }
         } catch {}
         refreshDriveSection();
       }).catch(() => {
-        // silencioso falló: mostrar botón de reconectar
         const statusMsg = container.querySelector('#drive-status-msg');
         const connectBtn = container.querySelector('#drive-connect');
         if (statusMsg) statusMsg.textContent = 'Sesión expirada.';
