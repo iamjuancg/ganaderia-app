@@ -64,9 +64,9 @@ async function loadInformes(container) {
   // Build dropdowns
   buildDropdown(container, 'inf-dropdown-explot', 'Explotación',
     explotaciones, filterExplotaciones, () => loadInformes(container));
-  buildDropdown(container, 'inf-dropdown-ing', 'Cat. ingreso',
+  buildDropdown(container, 'inf-dropdown-ing', 'Ingresos',
     catIngresos, filterCatsIng, () => loadInformes(container));
-  buildDropdown(container, 'inf-dropdown-gast', 'Cat. gasto',
+  buildDropdown(container, 'inf-dropdown-gast', 'Gastos',
     catGastos, filterCatsGast, () => loadInformes(container));
 
   // Limpiar button visibility
