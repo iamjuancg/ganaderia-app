@@ -1,5 +1,5 @@
 import { getAll, put, remove } from '../db/database.js';
-import { uid, ESPECIES, escapeHtml, formatEur, eventoLabel } from '../utils/format.js';
+import { uid, ESPECIES, TIPOS_EVENTO, escapeHtml, formatEur, eventoLabel } from '../utils/format.js';
 import { formatDate, todayISO } from '../utils/date.js';
 import { showToast } from '../utils/toast.js';
 import { openModal, confirmModal } from '../utils/modal.js';
@@ -8,6 +8,16 @@ import { renderEventoForm } from './eventos.js';
 let sortField = 'crotal', sortDir = 1;
 let filterEspecie = '', filterStatus = 'activo', filterSearch = '', filterExplotacion = '';
 let _explotaciones = [];
+let selectedAnimalIds = new Set();
+
+function updateSelectionBar(container) {
+  const bar = container.querySelector('#animal-sel-bar');
+  if (!bar) return;
+  const count = selectedAnimalIds.size;
+  bar.style.display = count > 0 ? '' : 'none';
+  const countEl = container.querySelector('#animal-sel-count');
+  if (countEl) countEl.textContent = `${count} animal${count !== 1 ? 'es' : ''} seleccionado${count !== 1 ? 's' : ''}`;
+}
 
 export async function renderAnimales(container) {
   _explotaciones = await getAll('explotaciones');
@@ -37,7 +47,13 @@ export async function renderAnimales(container) {
       </select>` : ''}
     </div>
 
-    <div id="animales-list"></div>`;
+    <div id="animales-list"></div>
+
+    <div id="animal-sel-bar" style="display:none;position:sticky;bottom:16px;background:var(--color-primary);color:#fff;border-radius:10px;padding:12px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;box-shadow:0 4px 20px rgba(0,0,0,0.25);margin-top:12px;">
+      <span id="animal-sel-count" style="font-weight:600;flex:1;min-width:120px;"></span>
+      <button class="btn" id="btn-bulk-evento" style="background:#fff;color:var(--color-primary);font-weight:600;">Aplicar evento</button>
+      <button class="btn" id="btn-desel-all" style="background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3);">✕ Deseleccionar</button>
+    </div>`;
 
   const refresh = () => loadAnimales(container);
 
@@ -50,6 +66,25 @@ export async function renderAnimales(container) {
   container.querySelector('#filter-especie').addEventListener('change', e => { filterEspecie = e.target.value; refresh(); });
   container.querySelector('#filter-status').addEventListener('change', e => { filterStatus = e.target.value; refresh(); });
   container.querySelector('#filter-explotacion')?.addEventListener('change', e => { filterExplotacion = e.target.value; refresh(); });
+
+  container.querySelector('#btn-desel-all').addEventListener('click', () => {
+    selectedAnimalIds.clear();
+    updateSelectionBar(container);
+    loadAnimales(container);
+  });
+
+  container.querySelector('#btn-bulk-evento').addEventListener('click', async () => {
+    const allAnimales = await getAll('animales');
+    const animals = allAnimales.filter(a => selectedAnimalIds.has(a.id));
+    if (animals.length === 0) return;
+    const { overlay } = openModal({ title: `Aplicar evento a ${animals.length} animales`, bodyHtml: '<div id="bevf-slot"></div>' });
+    renderBulkEventoForm(overlay.querySelector('#bevf-slot'), animals, () => {
+      overlay.remove();
+      selectedAnimalIds.clear();
+      updateSelectionBar(container);
+      loadAnimales(container);
+    });
+  });
 
   await loadAnimales(container);
 }
@@ -85,11 +120,14 @@ async function loadAnimales(container) {
       <h3>No hay animales</h3>
       <p>Pulsa "+ Nuevo animal" para añadir uno.</p>
     </div>`;
+    updateSelectionBar(container);
     return;
   }
 
   const explotMap = Object.fromEntries(_explotaciones.map(e => [e.id, e.nombre]));
   const showExplot = _explotaciones.length > 0;
+  const allSelected = animales.length > 0 && animales.every(a => selectedAnimalIds.has(a.id));
+  const someSelected = animales.some(a => selectedAnimalIds.has(a.id));
 
   const isMobile = window.innerWidth < 768;
   if (isMobile) {
@@ -97,6 +135,7 @@ async function loadAnimales(container) {
   } else {
     list.innerHTML = `<div class="table-container"><table>
       <thead><tr>
+        <th style="width:36px;"><input type="checkbox" id="check-all" ${allSelected ? 'checked' : ''} ${someSelected && !allSelected ? 'data-indeterminate="true"' : ''}></th>
         ${['crotal','nombre','especie','raza','sexo','status','fechaNacimiento','currentWeight'].map(f => `
           <th data-field="${f}" class="${sortField === f ? 'sorted' : ''}">${colLabel(f)} ${sortField === f ? (sortDir === 1 ? '▲' : '▼') : ''}</th>`).join('')}
         ${showExplot ? '<th>Explotación</th>' : ''}
@@ -104,6 +143,19 @@ async function loadAnimales(container) {
       </tr></thead>
       <tbody>${animales.map(a => animalRow(a, explotMap, showExplot)).join('')}</tbody>
     </table></div>`;
+
+    const checkAll = list.querySelector('#check-all');
+    if (checkAll) {
+      if (someSelected && !allSelected) checkAll.indeterminate = true;
+      checkAll.addEventListener('change', () => {
+        list.querySelectorAll('.animal-check').forEach(cb => {
+          cb.checked = checkAll.checked;
+          if (checkAll.checked) selectedAnimalIds.add(cb.dataset.id);
+          else selectedAnimalIds.delete(cb.dataset.id);
+        });
+        updateSelectionBar(container);
+      });
+    }
 
     list.querySelectorAll('th[data-field]').forEach(th => {
       th.addEventListener('click', () => {
@@ -113,6 +165,22 @@ async function loadAnimales(container) {
       });
     });
   }
+
+  list.querySelectorAll('.animal-check').forEach(cb => {
+    cb.addEventListener('change', () => {
+      if (cb.checked) selectedAnimalIds.add(cb.dataset.id);
+      else selectedAnimalIds.delete(cb.dataset.id);
+      updateSelectionBar(container);
+      const checkAll = list.querySelector('#check-all');
+      if (checkAll) {
+        const cbs = [...list.querySelectorAll('.animal-check')];
+        checkAll.checked = cbs.every(c => c.checked);
+        checkAll.indeterminate = !checkAll.checked && cbs.some(c => c.checked);
+      }
+    });
+  });
+
+  updateSelectionBar(container);
 
   list.querySelectorAll('[data-action="detail"]').forEach(btn => {
     btn.addEventListener('click', () => openDetalle(btn.dataset.id, container));
@@ -129,6 +197,7 @@ async function loadAnimales(container) {
     btn.addEventListener('click', () => {
       confirmModal('¿Eliminar este animal? Esta acción no se puede deshacer.', async () => {
         await remove('animales', btn.dataset.id);
+        selectedAnimalIds.delete(btn.dataset.id);
         showToast('Animal eliminado');
         loadAnimales(container);
       });
@@ -146,8 +215,12 @@ async function loadAnimales(container) {
 
 function animalCard(a, explotMap, showExplot) {
   const explotNombre = showExplot && a.explotacionId ? explotMap[a.explotacionId] : null;
-  return `<div class="animal-card">
-    <div class="animal-card-header">
+  const checked = selectedAnimalIds.has(a.id) ? 'checked' : '';
+  return `<div class="animal-card" style="position:relative;">
+    <div style="position:absolute;top:10px;left:10px;z-index:1;">
+      <input type="checkbox" class="animal-check" data-id="${a.id}" ${checked} style="width:16px;height:16px;cursor:pointer;">
+    </div>
+    <div class="animal-card-header" style="padding-left:28px;">
       <div>
         <div class="animal-card-crotal">${escapeHtml(a.crotal)}</div>
         ${a.nombre ? `<div class="animal-card-name">${escapeHtml(a.nombre)}</div>` : ''}
@@ -174,7 +247,9 @@ function animalCard(a, explotMap, showExplot) {
 
 function animalRow(a, explotMap, showExplot) {
   const explotNombre = showExplot && a.explotacionId ? explotMap[a.explotacionId] : null;
+  const checked = selectedAnimalIds.has(a.id) ? 'checked' : '';
   return `<tr>
+    <td><input type="checkbox" class="animal-check" data-id="${a.id}" ${checked}></td>
     <td><strong>${escapeHtml(a.crotal)}</strong></td>
     <td>${escapeHtml(a.nombre) || '—'}</td>
     <td>${escapeHtml(a.especie)}</td>
@@ -196,6 +271,108 @@ function animalRow(a, explotMap, showExplot) {
 function colLabel(f) {
   const labels = { crotal: 'Crotal', nombre: 'Nombre', especie: 'Especie', raza: 'Raza', sexo: 'Sexo', status: 'Estado', fechaNacimiento: 'Nacimiento', currentWeight: 'Peso' };
   return labels[f] || f;
+}
+
+async function renderBulkEventoForm(slot, animals, onSave) {
+  slot.innerHTML = `
+    <div class="form-group">
+      <div class="form-label">Animales seleccionados (${animals.length})</div>
+      <div style="max-height:80px;overflow-y:auto;background:var(--color-bg);border:1px solid var(--color-border);border-radius:6px;padding:6px 10px;font-size:0.85rem;line-height:1.8;">
+        ${animals.map(a => `<strong>${escapeHtml(a.crotal)}</strong>${a.nombre ? ' ' + escapeHtml(a.nombre) : ''}`).join(' &nbsp;·&nbsp; ')}
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="form-group">
+        <label class="form-label">Tipo de evento *</label>
+        <select class="form-control" id="bevf-tipo">
+          ${TIPOS_EVENTO.map(t => `<option value="${t.value}">${t.icon} ${t.label}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Fecha *</label>
+        <input type="date" class="form-control" id="bevf-fecha" value="${todayISO()}">
+      </div>
+    </div>
+    <div id="bevf-extra"></div>
+    <div class="form-group">
+      <label class="form-label">Descripción / notas</label>
+      <textarea class="form-control" id="bevf-desc" rows="2"></textarea>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;">
+      <button class="btn btn-primary" id="bevf-save">Aplicar a ${animals.length} animales</button>
+    </div>`;
+
+  const updateExtra = () => {
+    const tipo = slot.querySelector('#bevf-tipo').value;
+    const extra = slot.querySelector('#bevf-extra');
+    if (tipo === 'peso') {
+      extra.innerHTML = `<div class="form-group"><label class="form-label">Peso (kg)</label><input type="number" inputmode="decimal" class="form-control" id="bevf-peso" min="0" step="0.1"></div>`;
+    } else if (['venta', 'compra'].includes(tipo)) {
+      extra.innerHTML = `<div class="grid-2">
+        <div class="form-group"><label class="form-label">Importe por animal (€)</label><input type="number" inputmode="decimal" class="form-control" id="bevf-importe" min="0" step="0.01"></div>
+        <div class="form-group"><label class="form-label">${tipo === 'venta' ? 'Comprador' : 'Vendedor'}</label><input class="form-control" id="bevf-contraparte"></div>
+      </div>`;
+    } else {
+      extra.innerHTML = '';
+    }
+  };
+  slot.querySelector('#bevf-tipo').addEventListener('change', updateExtra);
+  updateExtra();
+
+  slot.querySelector('#bevf-save').addEventListener('click', async () => {
+    const tipo = slot.querySelector('#bevf-tipo').value;
+    const fecha = slot.querySelector('#bevf-fecha').value;
+    if (!fecha) { showToast('La fecha es obligatoria', 'error'); return; }
+
+    const importe = slot.querySelector('#bevf-importe')?.value ? Number(slot.querySelector('#bevf-importe').value) : null;
+    const peso = slot.querySelector('#bevf-peso')?.value ? Number(slot.querySelector('#bevf-peso').value) : null;
+    const contraparte = slot.querySelector('#bevf-contraparte')?.value.trim() || null;
+    const descripcion = slot.querySelector('#bevf-desc').value.trim() || null;
+    const fechaISO = new Date(fecha).toISOString();
+
+    for (const anim of animals) {
+      let transaccionId = null;
+      if ((tipo === 'venta' || tipo === 'compra') && importe) {
+        transaccionId = uid();
+        await put('transacciones', {
+          id: transaccionId,
+          tipo: tipo === 'venta' ? 'ingreso' : 'gasto',
+          importe,
+          fecha: fechaISO,
+          categoriaId: tipo === 'venta' ? 'sys-venta-animales' : 'sys-compra-animales',
+          descripcion: `${tipo === 'venta' ? 'Venta' : 'Compra'}: ${anim.crotal}${anim.nombre ? ' — ' + anim.nombre : ''}`,
+          referencia: null,
+          explotacionId: anim.explotacionId ?? null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+      }
+
+      await put('eventos', {
+        id: uid(),
+        animalId: anim.id,
+        tipo,
+        fecha: fechaISO,
+        descripcion,
+        peso,
+        importe,
+        contraparte,
+        transaccionId,
+        createdAt: new Date().toISOString(),
+      });
+
+      if (tipo === 'peso' && peso) {
+        await put('animales', { ...anim, currentWeight: peso, weightDate: fechaISO, updatedAt: new Date().toISOString() });
+      } else if (tipo === 'venta') {
+        await put('animales', { ...anim, status: 'vendido', updatedAt: new Date().toISOString() });
+      } else if (tipo === 'muerte') {
+        await put('animales', { ...anim, status: 'muerto', updatedAt: new Date().toISOString() });
+      }
+    }
+
+    showToast(`Evento aplicado a ${animals.length} animales`);
+    onSave();
+  });
 }
 
 async function openDetalle(id, container) {
