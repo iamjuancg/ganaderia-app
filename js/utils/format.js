@@ -32,6 +32,7 @@ export const TIPOS_EVENTO = [
   { value: 'peso', label: 'Pesaje', icon: '⚖️' },
   { value: 'vacunacion', label: 'Vacunación', icon: '💉' },
   { value: 'tratamiento', label: 'Tratamiento', icon: '💊' },
+  { value: 'celo', label: 'Celo', icon: '❤️' },
   { value: 'otro', label: 'Otro', icon: '📝' },
 ];
 
