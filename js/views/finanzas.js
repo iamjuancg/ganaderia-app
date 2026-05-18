@@ -109,27 +109,45 @@ function buildDropdown(container, wrapperId, label, items, selected, onchange) {
 
     btn.classList.add('open');
 
-    // Estado pendiente — no modifica `selected` hasta aplicar
     const pending = new Set(selected);
 
     const panel = document.createElement('div');
     panel.className = 'fi-dropdown-panel';
-    panel.innerHTML = items.map(item => `
-      <label class="fi-dd-item${pending.has(item.id) ? ' fi-dd-checked' : ''}">
-        <input type="checkbox" value="${item.id}" ${pending.has(item.id) ? 'checked' : ''}>
-        <span>${escapeHtml(item.nombre)}</span>
-      </label>`).join('') +
+    panel.innerHTML =
+      `<div class="fi-dd-actions">
+        <button class="fi-dd-selall">Seleccionar todo</button>
+        <button class="fi-dd-deselall">Deseleccionar todo</button>
+      </div>` +
+      items.map(item => `
+        <label class="fi-dd-item${pending.has(item.id) ? ' fi-dd-checked' : ''}">
+          <input type="checkbox" value="${item.id}" ${pending.has(item.id) ? 'checked' : ''}>
+          <span>${escapeHtml(item.nombre)}${item.tipo ? ` <span class="fi-dd-tipo fi-dd-tipo-${item.tipo}">${item.tipo}</span>` : ''}</span>
+        </label>`).join('') +
       `<div class="fi-dd-footer">
         <button class="btn btn-sm btn-primary fi-dd-apply">Aplicar filtros</button>
       </div>`;
 
-    panel.querySelectorAll('input[type=checkbox]').forEach(cb => {
+    const checkboxes = panel.querySelectorAll('input[type=checkbox]');
+
+    const setAll = (checked) => {
+      checkboxes.forEach(cb => {
+        cb.checked = checked;
+        cb.closest('label').classList.toggle('fi-dd-checked', checked);
+        if (checked) pending.add(cb.value);
+        else pending.delete(cb.value);
+      });
+    };
+
+    checkboxes.forEach(cb => {
       cb.addEventListener('change', () => {
         cb.closest('label').classList.toggle('fi-dd-checked', cb.checked);
         if (cb.checked) pending.add(cb.value);
         else pending.delete(cb.value);
       });
     });
+
+    panel.querySelector('.fi-dd-selall').addEventListener('click', e => { e.stopPropagation(); setAll(true); });
+    panel.querySelector('.fi-dd-deselall').addEventListener('click', e => { e.stopPropagation(); setAll(false); });
 
     panel.querySelector('.fi-dd-apply').addEventListener('click', e => {
       e.stopPropagation();
@@ -163,14 +181,13 @@ async function loadFinanzas(container) {
   ]);
   const catMap = Object.fromEntries(categorias.map(c => [c.id, c]));
   const explotMap = Object.fromEntries(explotaciones.map(e => [e.id, e.nombre]));
-  const catsTab = categorias.filter(c => c.tipo === activeTab);
   const showExplot = explotaciones.length > 0;
 
-  // Build dropdowns
+  // Build dropdowns — categorías muestra todas (con badge de tipo)
   buildDropdown(container, 'fi-dropdown-explot', 'Explotación',
     explotaciones, filterExplotaciones, () => loadFinanzas(container));
   buildDropdown(container, 'fi-dropdown-cat', 'Categoría',
-    catsTab, filterCats, () => loadFinanzas(container));
+    categorias, filterCats, () => loadFinanzas(container));
 
   // Limpiar button visibility
   const activeCount = filterExplotaciones.size + filterCats.size;

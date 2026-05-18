@@ -612,3 +612,34 @@ canvas { display: block; width: 100% !important; }
   display: flex;
   justify-content: flex-end;
 }
+.fi-dd-actions {
+  display: flex;
+  gap: 6px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--color-border);
+}
+.fi-dd-actions button {
+  flex: 1;
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 0.78rem;
+  padding: 4px 8px;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  transition: background var(--transition), color var(--transition);
+}
+.fi-dd-actions button:hover { background: var(--color-bg); color: var(--color-text); }
+.fi-dd-tipo {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 4px;
+  margin-left: 4px;
+  vertical-align: middle;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.fi-dd-tipo-ingreso { background: var(--color-success-light); color: var(--color-primary-dark); }
+.fi-dd-tipo-gasto { background: var(--color-danger-light); color: var(--color-danger); }
