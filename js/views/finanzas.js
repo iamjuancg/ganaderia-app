@@ -7,11 +7,7 @@ import { openModal, confirmModal } from '../utils/modal.js';
 let activeTab = 'ingreso', filterYear = currentYear();
 let filterCats = new Set();
 let filterExplotaciones = new Set();
-
-function chip(label, active, attr, val) {
-  const cls = active ? 'btn-primary' : 'btn-secondary';
-  return `<button class="btn btn-sm ${cls}" style="border-radius:20px;" ${attr}="${escapeHtml(val)}">${escapeHtml(label)}</button>`;
-}
+let filtersOpen = false;
 
 export async function renderFinanzas(container) {
   const years = await getAvailableYears();
@@ -25,14 +21,18 @@ export async function renderFinanzas(container) {
       </div>
     </div>
 
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-      <label class="form-label" style="margin:0;white-space:nowrap;">Año:</label>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;">
       <select class="form-control" id="fi-year" style="width:110px;">
         ${years.map(y => `<option value="${y}" ${filterYear === y ? 'selected' : ''}>${y}</option>`).join('')}
       </select>
+      <button class="btn btn-secondary" id="fi-toggle-filters" style="display:flex;align-items:center;gap:6px;">
+        Filtros <span id="fi-filter-badge"></span> <span id="fi-toggle-icon">${filtersOpen ? '▲' : '▼'}</span>
+      </button>
     </div>
 
-    <div id="fi-chips" style="margin-bottom:8px;"></div>
+    <div id="fi-filter-panel" style="display:${filtersOpen ? 'block' : 'none'};margin-bottom:12px;">
+      <div id="fi-filter-inner"></div>
+    </div>
 
     <div id="summary-bar-finanzas"></div>
 
@@ -61,7 +61,17 @@ export async function renderFinanzas(container) {
       refresh();
     });
   });
-  container.querySelector('#fi-year').addEventListener('change', e => { filterYear = Number(e.target.value); refresh(); });
+
+  container.querySelector('#fi-year').addEventListener('change', e => {
+    filterYear = Number(e.target.value);
+    refresh();
+  });
+
+  container.querySelector('#fi-toggle-filters').addEventListener('click', () => {
+    filtersOpen = !filtersOpen;
+    container.querySelector('#fi-filter-panel').style.display = filtersOpen ? 'block' : 'none';
+    container.querySelector('#fi-toggle-icon').textContent = filtersOpen ? '▲' : '▼';
+  });
 
   await loadFinanzas(container);
 }
@@ -82,44 +92,59 @@ async function loadFinanzas(container) {
   const catsTab = categorias.filter(c => c.tipo === activeTab);
   const showExplot = explotaciones.length > 0;
 
-  // --- Chips ---
-  const chipsEl = container.querySelector('#fi-chips');
-  if (chipsEl) {
-    const explotRow = showExplot ? `
-      <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:6px;">
-        <span class="text-muted text-small" style="min-width:80px;">Explotación:</span>
-        ${chip('Todas', filterExplotaciones.size === 0, 'data-explot', '')}
-        ${explotaciones.map(e => chip(e.nombre, filterExplotaciones.has(e.id), 'data-explot', e.id)).join('')}
-      </div>` : '';
+  // --- Panel de filtros ---
+  const filterInner = container.querySelector('#fi-filter-inner');
+  if (filterInner) {
+    const explotSize = Math.min(Math.max(explotaciones.length, 2), 5);
+    const catSize = Math.min(Math.max(catsTab.length, 2), 6);
 
-    const catRow = catsTab.length > 0 ? `
-      <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
-        <span class="text-muted text-small" style="min-width:80px;">Categoría:</span>
-        ${chip('Todas', filterCats.size === 0, 'data-cat', '')}
-        ${catsTab.map(c => chip(c.nombre, filterCats.has(c.id), 'data-cat', c.id)).join('')}
-      </div>` : '';
+    filterInner.innerHTML = `
+      <div class="card" style="padding:12px;">
+        <div class="grid-2" style="gap:16px;">
+          ${showExplot ? `
+          <div class="form-group" style="margin:0;">
+            <label class="form-label">Explotación <span class="text-muted" style="font-weight:normal;">(vacío = todas)</span></label>
+            <select class="form-control" id="fi-explotacion" multiple size="${explotSize}">
+              ${explotaciones.map(e => `<option value="${e.id}" ${filterExplotaciones.has(e.id) ? 'selected' : ''}>${escapeHtml(e.nombre)}</option>`).join('')}
+            </select>
+          </div>` : ''}
+          <div class="form-group" style="margin:0;">
+            <label class="form-label">Categoría <span class="text-muted" style="font-weight:normal;">(vacío = todas)</span></label>
+            <select class="form-control" id="fi-cat" multiple size="${catSize}">
+              ${catsTab.map(c => `<option value="${c.id}" ${filterCats.has(c.id) ? 'selected' : ''}>${escapeHtml(c.nombre)}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div style="margin-top:10px;">
+          <button class="btn btn-sm btn-secondary" id="fi-clear-filters">Limpiar filtros</button>
+        </div>
+      </div>`;
 
-    chipsEl.innerHTML = explotRow + catRow;
-
-    chipsEl.querySelectorAll('[data-explot]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const id = btn.dataset.explot;
-        if (id === '') filterExplotaciones.clear();
-        else { if (filterExplotaciones.has(id)) filterExplotaciones.delete(id); else filterExplotaciones.add(id); }
-        loadFinanzas(container);
-      });
+    filterInner.querySelector('#fi-explotacion')?.addEventListener('change', e => {
+      filterExplotaciones = new Set([...e.target.selectedOptions].map(o => o.value));
+      loadFinanzas(container);
     });
-    chipsEl.querySelectorAll('[data-cat]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const id = btn.dataset.cat;
-        if (id === '') filterCats.clear();
-        else { if (filterCats.has(id)) filterCats.delete(id); else filterCats.add(id); }
-        loadFinanzas(container);
-      });
+    filterInner.querySelector('#fi-cat')?.addEventListener('change', e => {
+      filterCats = new Set([...e.target.selectedOptions].map(o => o.value));
+      loadFinanzas(container);
+    });
+    filterInner.querySelector('#fi-clear-filters').addEventListener('click', () => {
+      filterExplotaciones = new Set();
+      filterCats = new Set();
+      loadFinanzas(container);
     });
   }
 
-  // --- Tabs active ---
+  // --- Badge filtros activos ---
+  const activeCount = filterExplotaciones.size + filterCats.size;
+  const badge = container.querySelector('#fi-filter-badge');
+  if (badge) {
+    badge.innerHTML = activeCount > 0
+      ? `<span class="badge" style="background:var(--color-primary);color:#fff;">${activeCount}</span>`
+      : '';
+  }
+
+  // --- Tabs ---
   container.querySelectorAll('.tab-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === activeTab));
 
   // --- Filtrado lista ---
