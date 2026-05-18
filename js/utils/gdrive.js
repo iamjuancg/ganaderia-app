@@ -6,7 +6,10 @@ const BACKUP_FILENAME = 'ganaderia-backup.json';
 const LS_CONNECTED = 'gdrive_connected';
 const LS_LAST_SYNC = 'gdrive_last_sync';
 
+// Cliente interactivo (popup en PC/Android, redirect en iOS PWA)
 let _tokenClient = null;
+// Cliente silencioso (siempre popup/iframe — funciona en todos los contextos)
+let _silentClient = null;
 let _accessToken = null;
 
 // ── Setup ──────────────────────────────────────────────────────────────────
@@ -27,7 +30,6 @@ export function gdriveGetLastSync() {
   return localStorage.getItem(LS_LAST_SYNC);
 }
 
-// iOS PWA (home screen) bloquea popups — hay que usar redirect
 function isIOSStandalone() {
   return !!navigator.standalone;
 }
@@ -47,6 +49,14 @@ export async function gdriveInit() {
   if (!GDRIVE_CLIENT_ID) return;
   await loadGIS();
 
+  // Cliente silencioso: siempre popup (usa iframe oculto, no bloquea)
+  _silentClient = google.accounts.oauth2.initTokenClient({
+    client_id: GDRIVE_CLIENT_ID,
+    scope: SCOPE,
+    callback: () => {}
+  });
+
+  // Cliente interactivo: redirect en iOS PWA (evita bloqueo de popups)
   const ios = isIOSStandalone();
   _tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: GDRIVE_CLIENT_ID,
@@ -57,7 +67,7 @@ export async function gdriveInit() {
   });
 }
 
-// Llama esto al arrancar para recuperar el token de un redirect OAuth en iOS
+// Extrae el token del hash de la URL tras redirect OAuth en iOS
 export function gdriveHandleRedirectToken() {
   const hash = window.location.hash;
   if (!hash || !hash.includes('access_token=')) return false;
@@ -66,37 +76,41 @@ export function gdriveHandleRedirectToken() {
   if (!token) return false;
   _accessToken = token;
   localStorage.setItem(LS_CONNECTED, '1');
-  history.replaceState(null, '', window.location.pathname); // limpia el hash
+  history.replaceState(null, '', window.location.pathname);
   return true;
 }
 
 // ── Auth ───────────────────────────────────────────────────────────────────
 
-function requestToken(silent) {
-  return new Promise((resolve, reject) => {
+export async function gdriveSignIn() {
+  if (isIOSStandalone()) {
+    localStorage.setItem(LS_CONNECTED, '1');
+    _tokenClient.requestAccessToken({ prompt: 'select_account' });
+    return; // página redirige a Google — el Promise nunca resuelve
+  }
+  await new Promise((resolve, reject) => {
     _tokenClient.callback = (resp) => {
       if (resp.error) { reject(new Error(resp.error)); return; }
       _accessToken = resp.access_token;
       resolve();
     };
     _tokenClient.error_callback = (err) => reject(new Error(err.type ?? 'error'));
-    _tokenClient.requestAccessToken({ prompt: silent ? '' : 'select_account' });
-  });
-}
-
-export async function gdriveSignIn() {
-  if (isIOSStandalone()) {
-    // En iOS PWA, requestAccessToken redirige la página — el Promise nunca resuelve
-    localStorage.setItem(LS_CONNECTED, '1'); // marcar intención de conexión
     _tokenClient.requestAccessToken({ prompt: 'select_account' });
-    return; // la página redirige a Google aquí
-  }
-  await requestToken(false);
+  });
   localStorage.setItem(LS_CONNECTED, '1');
 }
 
 export async function gdriveSignInSilent() {
-  await requestToken(true);
+  // Usa siempre el cliente popup para silent auth (iframe, nunca redirige)
+  await new Promise((resolve, reject) => {
+    _silentClient.callback = (resp) => {
+      if (resp.error) { reject(new Error(resp.error)); return; }
+      _accessToken = resp.access_token;
+      resolve();
+    };
+    _silentClient.error_callback = (err) => reject(new Error(err.type ?? 'error'));
+    _silentClient.requestAccessToken({ prompt: '' });
+  });
 }
 
 export function gdriveSignOut() {
@@ -191,12 +205,15 @@ export async function gdriveDownload() {
 // ── Auto-sync ──────────────────────────────────────────────────────────────
 
 export async function gdriveAutoSync(importAllFn, exportAllFn) {
-  if (!gdriveIsConfigured() || !gdriveHasSavedConnection() || !_tokenClient) return;
+  if (!gdriveIsConfigured() || !gdriveHasSavedConnection() || !_silentClient) return;
 
-  try {
-    await gdriveSignInSilent();
-  } catch {
-    return;
+  // Si ya tenemos token (p.ej. tras redirect iOS) no hace falta auth silencioso
+  if (!_accessToken) {
+    try {
+      await gdriveSignInSilent();
+    } catch {
+      return;
+    }
   }
 
   try {
