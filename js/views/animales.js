@@ -324,11 +324,16 @@ async function renderBulkEventoForm(slot, animals, onSave) {
     const fecha = slot.querySelector('#bevf-fecha').value;
     if (!fecha) { showToast('La fecha es obligatoria', 'error'); return; }
 
-    const importe = slot.querySelector('#bevf-importe')?.value ? Number(slot.querySelector('#bevf-importe').value) : null;
+    const importeRaw = slot.querySelector('#bevf-importe')?.value;
+    const importe = importeRaw ? Number(importeRaw) : null;
+    if ((tipo === 'venta' || tipo === 'compra') && !importe) {
+      showToast('El importe es obligatorio para venta/compra', 'error'); return;
+    }
     const peso = slot.querySelector('#bevf-peso')?.value ? Number(slot.querySelector('#bevf-peso').value) : null;
     const contraparte = slot.querySelector('#bevf-contraparte')?.value.trim() || null;
     const descripcion = slot.querySelector('#bevf-desc').value.trim() || null;
     const fechaISO = new Date(fecha).toISOString();
+    const batchId = uid();
 
     for (const anim of animals) {
       let transaccionId = null;
@@ -358,6 +363,7 @@ async function renderBulkEventoForm(slot, animals, onSave) {
         importe,
         contraparte,
         transaccionId,
+        batchId,
         createdAt: new Date().toISOString(),
       });
 

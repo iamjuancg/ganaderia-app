@@ -77,17 +77,72 @@ async function loadEventos(container) {
     return;
   }
 
+  // Separate individual events from batch groups
+  const batchMap = new Map();
+  const individualEvs = [];
+  for (const ev of filtered) {
+    if (ev.batchId) {
+      if (!batchMap.has(ev.batchId)) batchMap.set(ev.batchId, []);
+      batchMap.get(ev.batchId).push(ev);
+    } else {
+      individualEvs.push(ev);
+    }
+  }
+
+  const displayItems = [
+    ...individualEvs.map(ev => ({ type: 'single', ev, sortDate: ev.fecha })),
+    ...[...batchMap.entries()].map(([batchId, evs]) => ({ type: 'batch', batchId, evs, sortDate: evs[0].fecha })),
+  ].sort((a, b) => new Date(b.sortDate) - new Date(a.sortDate));
+
   const showExplot = _explotaciones.length > 0;
-  list.innerHTML = `<div class="table-container"><table>
-    <thead><tr>
-      <th>Fecha</th><th>Tipo</th><th>Animal</th>${showExplot ? '<th>Explotación</th>' : ''}<th>Descripción</th><th>Datos</th><th>Acciones</th>
-    </tr></thead>
-    <tbody>${filtered.map(ev => {
+
+  const renderSingleRow = (ev) => {
+    const a = animalMap[ev.animalId];
+    const explotNombre = showExplot && a?.explotacionId ? explotMap[a.explotacionId] : null;
+    return `<tr>
+      <td>${formatDate(ev.fecha)}</td>
+      <td>${eventoIcon(ev.tipo)} ${eventoLabel(ev.tipo)}</td>
+      <td>${a ? `<strong>${escapeHtml(a.crotal)}</strong>${a.nombre ? ' ' + escapeHtml(a.nombre) : ''}` : '—'}</td>
+      ${showExplot ? `<td>${explotNombre ? escapeHtml(explotNombre) : '<span class="text-muted">—</span>'}</td>` : ''}
+      <td>${escapeHtml(ev.descripcion) || '—'}</td>
+      <td>${ev.peso ? ev.peso + ' kg' : ''}${ev.importe ? formatEur(ev.importe) : ''}</td>
+      <td class="td-actions">
+        <button class="btn btn-sm btn-secondary" data-action="edit" data-id="${ev.id}">Editar</button>
+        <button class="btn btn-sm btn-danger" data-action="delete" data-id="${ev.id}">🗑</button>
+      </td>
+    </tr>`;
+  };
+
+  const renderBatchGroup = (batchId, evs) => {
+    const firstEv = evs[0];
+    const totalImporte = evs.reduce((s, e) => s + (e.importe || 0), 0);
+    const preview = evs.slice(0, 3).map(ev => {
+      const a = animalMap[ev.animalId];
+      return a ? escapeHtml(a.crotal) : '—';
+    }).join(', ') + (evs.length > 3 ? ` +${evs.length - 3} más` : '');
+
+    const headerRow = `<tr style="background:var(--color-bg);">
+      <td>${formatDate(firstEv.fecha)}</td>
+      <td>${eventoIcon(firstEv.tipo)} ${eventoLabel(firstEv.tipo)}</td>
+      <td${showExplot ? ' colspan="2"' : ''}>
+        <span style="font-weight:600;">📦 Lote: ${evs.length} animales</span>
+        <div style="font-size:0.78rem;color:var(--color-text-muted);margin-top:2px;">${preview}</div>
+      </td>
+      <td>${escapeHtml(firstEv.descripcion) || '—'}</td>
+      <td>${totalImporte > 0 ? formatEur(totalImporte) : '—'}</td>
+      <td class="td-actions">
+        <button class="btn btn-sm" data-action="toggle-batch" data-batch-id="${batchId}" style="background:var(--color-border);">▶ Ver</button>
+        <button class="btn btn-sm btn-secondary" data-action="edit-batch" data-batch-id="${batchId}">Editar</button>
+        <button class="btn btn-sm btn-danger" data-action="delete-batch" data-batch-id="${batchId}">🗑</button>
+      </td>
+    </tr>`;
+
+    const detailRows = evs.map(ev => {
       const a = animalMap[ev.animalId];
       const explotNombre = showExplot && a?.explotacionId ? explotMap[a.explotacionId] : null;
-      return `<tr>
-        <td>${formatDate(ev.fecha)}</td>
-        <td>${eventoIcon(ev.tipo)} ${eventoLabel(ev.tipo)}</td>
+      return `<tr class="batch-detail-row" data-batch-id="${batchId}" style="display:none;">
+        <td style="color:var(--color-text-muted);font-size:0.8rem;padding-left:16px;">↳</td>
+        <td></td>
         <td>${a ? `<strong>${escapeHtml(a.crotal)}</strong>${a.nombre ? ' ' + escapeHtml(a.nombre) : ''}` : '—'}</td>
         ${showExplot ? `<td>${explotNombre ? escapeHtml(explotNombre) : '<span class="text-muted">—</span>'}</td>` : ''}
         <td>${escapeHtml(ev.descripcion) || '—'}</td>
@@ -97,10 +152,72 @@ async function loadEventos(container) {
           <button class="btn btn-sm btn-danger" data-action="delete" data-id="${ev.id}">🗑</button>
         </td>
       </tr>`;
-    }).join('')}
+    }).join('');
+
+    return headerRow + detailRows;
+  };
+
+  list.innerHTML = `<div class="table-container"><table>
+    <thead><tr>
+      <th>Fecha</th><th>Tipo</th><th>Animal / Lote</th>${showExplot ? '<th>Explotación</th>' : ''}<th>Descripción</th><th>Datos</th><th>Acciones</th>
+    </tr></thead>
+    <tbody>${displayItems.map(item =>
+      item.type === 'single' ? renderSingleRow(item.ev) : renderBatchGroup(item.batchId, item.evs)
+    ).join('')}
     </tbody>
   </table></div>`;
 
+  // Toggle batch rows
+  list.querySelectorAll('[data-action="toggle-batch"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const batchId = btn.dataset.batchId;
+      const rows = list.querySelectorAll(`.batch-detail-row[data-batch-id="${batchId}"]`);
+      const isOpen = rows[0]?.style.display !== 'none';
+      rows.forEach(r => r.style.display = isOpen ? 'none' : '');
+      btn.textContent = isOpen ? '▶ Ver' : '▼ Ocultar';
+    });
+  });
+
+  // Edit batch
+  list.querySelectorAll('[data-action="edit-batch"]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const batchId = btn.dataset.batchId;
+      const [allEvs, allAnimales] = await Promise.all([getAll('eventos'), getAll('animales')]);
+      const batchEvs = allEvs.filter(e => e.batchId === batchId);
+      const { overlay } = openModal({ title: `Editar lote (${batchEvs.length} animales)`, bodyHtml: '<div id="bef-slot"></div>' });
+      renderBatchEditForm(overlay.querySelector('#bef-slot'), batchEvs, allAnimales, () => {
+        overlay.remove();
+        loadEventos(container);
+      });
+    });
+  });
+
+  // Delete batch
+  list.querySelectorAll('[data-action="delete-batch"]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const batchId = btn.dataset.batchId;
+      const allEvs = await getAll('eventos');
+      const batchEvs = allEvs.filter(e => e.batchId === batchId);
+      confirmModal(`¿Eliminar el lote completo? Se borrarán ${batchEvs.length} eventos y sus transacciones vinculadas.`, async () => {
+        const allAnimales = await getAll('animales');
+        for (const ev of batchEvs) {
+          await remove('eventos', ev.id);
+          if (ev.transaccionId) await remove('transacciones', ev.transaccionId);
+          if ((ev.tipo === 'venta' || ev.tipo === 'muerte') && ev.animalId) {
+            const anim = allAnimales.find(a => a.id === ev.animalId);
+            const expectedStatus = ev.tipo === 'venta' ? 'vendido' : 'muerto';
+            if (anim && anim.status === expectedStatus) {
+              await put('animales', { ...anim, status: 'activo', updatedAt: new Date().toISOString() });
+            }
+          }
+        }
+        showToast(`Lote de ${batchEvs.length} eventos eliminado`);
+        loadEventos(container);
+      });
+    });
+  });
+
+  // Individual edit
   list.querySelectorAll('[data-action="edit"]').forEach(btn => {
     btn.addEventListener('click', async () => {
       const [allEvs, allAnimales] = await Promise.all([getAll('eventos'), getAll('animales')]);
@@ -112,6 +229,7 @@ async function loadEventos(container) {
     });
   });
 
+  // Individual delete
   list.querySelectorAll('[data-action="delete"]').forEach(btn => {
     btn.addEventListener('click', async () => {
       const allEvs = await getAll('eventos');
@@ -135,6 +253,141 @@ async function loadEventos(container) {
         loadEventos(container);
       });
     });
+  });
+}
+
+async function renderBatchEditForm(slot, events, allAnimales, onSave) {
+  const animalMap = Object.fromEntries(allAnimales.map(a => [a.id, a]));
+  const firstEv = events[0];
+  const toRemove = new Set();
+
+  const renderAnimalList = () => {
+    const el = slot.querySelector('#bef-anim-list');
+    if (!el) return;
+    const remaining = events.filter(ev => !toRemove.has(ev.id));
+    el.innerHTML = remaining.map(ev => {
+      const a = animalMap[ev.animalId];
+      return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--color-border);">
+        <span style="flex:1;font-size:0.88rem;">${a ? `<strong>${escapeHtml(a.crotal)}</strong>${a.nombre ? ' — ' + escapeHtml(a.nombre) : ''}` : '—'}</span>
+        <button type="button" class="btn btn-sm btn-danger" data-remove-ev="${ev.id}" style="padding:2px 8px;line-height:1;">✕</button>
+      </div>`;
+    }).join('') + (toRemove.size > 0
+      ? `<div style="font-size:0.8rem;color:var(--color-text-muted);margin-top:6px;">${toRemove.size} animal(es) se eliminarán del lote al guardar.</div>`
+      : '');
+    el.querySelectorAll('[data-remove-ev]').forEach(btn => {
+      btn.addEventListener('click', () => { toRemove.add(btn.dataset.removeEv); renderAnimalList(); });
+    });
+  };
+
+  slot.innerHTML = `
+    <div class="form-group">
+      <div class="form-label">Animales del lote (${events.length})</div>
+      <div id="bef-anim-list" style="max-height:150px;overflow-y:auto;background:var(--color-bg);border:1px solid var(--color-border);border-radius:6px;padding:4px 10px;"></div>
+    </div>
+    <div class="grid-2">
+      <div class="form-group">
+        <label class="form-label">Tipo de evento *</label>
+        <select class="form-control" id="bef-tipo">
+          ${TIPOS_EVENTO.map(t => `<option value="${t.value}" ${firstEv.tipo === t.value ? 'selected' : ''}>${t.icon} ${t.label}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Fecha *</label>
+        <input type="date" class="form-control" id="bef-fecha" value="${firstEv.fecha.split('T')[0]}">
+      </div>
+    </div>
+    <div id="bef-extra"></div>
+    <div class="form-group">
+      <label class="form-label">Descripción / notas</label>
+      <textarea class="form-control" id="bef-desc" rows="2">${escapeHtml(firstEv.descripcion ?? '')}</textarea>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;">
+      <button class="btn btn-primary" id="bef-save">Guardar cambios</button>
+    </div>`;
+
+  renderAnimalList();
+
+  const updateExtra = () => {
+    const tipo = slot.querySelector('#bef-tipo').value;
+    const extra = slot.querySelector('#bef-extra');
+    const sameType = firstEv.tipo === tipo;
+    if (tipo === 'peso') {
+      extra.innerHTML = `<div class="form-group"><label class="form-label">Peso (kg)</label><input type="number" inputmode="decimal" class="form-control" id="bef-peso" min="0" step="0.1" value="${sameType && firstEv.peso != null ? firstEv.peso : ''}"></div>`;
+    } else if (['venta', 'compra'].includes(tipo)) {
+      extra.innerHTML = `<div class="grid-2">
+        <div class="form-group"><label class="form-label">Importe por animal (€)</label><input type="number" inputmode="decimal" class="form-control" id="bef-importe" min="0" step="0.01" value="${sameType && firstEv.importe != null ? firstEv.importe : ''}"></div>
+        <div class="form-group"><label class="form-label">${tipo === 'venta' ? 'Comprador' : 'Vendedor'}</label><input class="form-control" id="bef-contraparte" value="${sameType ? escapeHtml(firstEv.contraparte ?? '') : ''}"></div>
+      </div>`;
+    } else {
+      extra.innerHTML = '';
+    }
+  };
+  slot.querySelector('#bef-tipo').addEventListener('change', updateExtra);
+  updateExtra();
+
+  slot.querySelector('#bef-save').addEventListener('click', async () => {
+    const tipo = slot.querySelector('#bef-tipo').value;
+    const fecha = slot.querySelector('#bef-fecha').value;
+    if (!fecha) { showToast('La fecha es obligatoria', 'error'); return; }
+    const fechaISO = new Date(fecha).toISOString();
+    const importe = slot.querySelector('#bef-importe')?.value ? Number(slot.querySelector('#bef-importe').value) : null;
+    const peso = slot.querySelector('#bef-peso')?.value ? Number(slot.querySelector('#bef-peso').value) : null;
+    const contraparte = slot.querySelector('#bef-contraparte')?.value.trim() || null;
+    const descripcion = slot.querySelector('#bef-desc').value.trim() || null;
+
+    const freshAnimales = await getAll('animales');
+
+    for (const ev of events) {
+      if (toRemove.has(ev.id)) {
+        await remove('eventos', ev.id);
+        if (ev.transaccionId) await remove('transacciones', ev.transaccionId);
+        if ((ev.tipo === 'venta' || ev.tipo === 'muerte') && ev.animalId) {
+          const anim = freshAnimales.find(a => a.id === ev.animalId);
+          const expectedStatus = ev.tipo === 'venta' ? 'vendido' : 'muerto';
+          if (anim && anim.status === expectedStatus) {
+            await put('animales', { ...anim, status: 'activo', updatedAt: new Date().toISOString() });
+          }
+        }
+        continue;
+      }
+
+      const anim = freshAnimales.find(a => a.id === ev.animalId);
+      let transaccionId = ev.transaccionId;
+
+      if ((tipo === 'venta' || tipo === 'compra') && importe) {
+        if (!transaccionId) transaccionId = uid();
+        await put('transacciones', {
+          id: transaccionId,
+          tipo: tipo === 'venta' ? 'ingreso' : 'gasto',
+          importe,
+          fecha: fechaISO,
+          categoriaId: tipo === 'venta' ? 'sys-venta-animales' : 'sys-compra-animales',
+          descripcion: `${tipo === 'venta' ? 'Venta' : 'Compra'}: ${anim?.crotal ?? ''}${anim?.nombre ? ' — ' + anim.nombre : ''}`,
+          referencia: null,
+          explotacionId: anim?.explotacionId ?? null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+      } else if (transaccionId) {
+        await remove('transacciones', transaccionId);
+        transaccionId = null;
+      }
+
+      await put('eventos', { ...ev, tipo, fecha: fechaISO, descripcion, peso, importe, contraparte, transaccionId, updatedAt: new Date().toISOString() });
+
+      if (anim) {
+        if (tipo === 'peso' && peso) {
+          await put('animales', { ...anim, currentWeight: peso, weightDate: fechaISO, updatedAt: new Date().toISOString() });
+        } else if (tipo === 'venta') {
+          await put('animales', { ...anim, status: 'vendido', updatedAt: new Date().toISOString() });
+        } else if (tipo === 'muerte') {
+          await put('animales', { ...anim, status: 'muerto', updatedAt: new Date().toISOString() });
+        }
+      }
+    }
+
+    showToast('Lote actualizado');
+    onSave();
   });
 }
 
@@ -229,6 +482,7 @@ export async function renderEventoForm(slot, animal, onSave, ev = null) {
       importe,
       contraparte: slot.querySelector('#evf-contraparte')?.value.trim() || null,
       transaccionId,
+      batchId: ev?.batchId ?? null,
       createdAt: ev?.createdAt ?? new Date().toISOString(),
     };
 
