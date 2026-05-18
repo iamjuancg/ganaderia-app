@@ -276,11 +276,10 @@ export async function renderAjustes(container) {
           <button class="btn btn-sm btn-danger" data-explodel="${e.id}" title="Eliminar">🗑</button>
         </div>`;
       }).join('');
-      const totales = `<div style="display:flex;gap:20px;padding:10px 0;font-size:0.88rem;color:var(--color-text-muted);">
-        ${totalHa > 0 ? `<span><strong style="color:var(--color-text)">${totalHa} ha</strong> total</span>` : ''}
-        ${totalRenta > 0 ? `<span><strong style="color:var(--color-text)">${formatEur(totalRenta)}</strong> renta/año total</span>` : ''}
-      </div>`;
-      list.innerHTML = filas + (totalHa > 0 || totalRenta > 0 ? totales : '');
+      const haItem = totalHa > 0 ? `<div class="summary-item"><div class="summary-label">Hectáreas totales</div><div class="summary-value">${totalHa} ha</div></div>` : '';
+      const rentaItem = totalRenta > 0 ? `<div class="summary-item"><div class="summary-label">Renta total/año</div><div class="summary-value income">${formatEur(totalRenta)}</div></div>` : '';
+      const totales = (totalHa > 0 || totalRenta > 0) ? `<div class="summary-bar" style="margin-top:8px;margin-bottom:0;">${haItem}${rentaItem}</div>` : '';
+      list.innerHTML = filas + totales;
     }
     list.querySelectorAll('[data-explodit]').forEach(btn => {
       btn.addEventListener('click', () => {

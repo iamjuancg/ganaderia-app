@@ -303,10 +303,12 @@ export async function renderAnimalForm(slot, animal, onSave) {
       </div>
       <div class="form-group">
         <label class="form-label">Madre</label>
-        <select class="form-control" id="af-madre">
-          <option value="">— Sin madre —</option>
-          ${hembras.map(h => `<option value="${h.id}" ${animal?.madreId === h.id ? 'selected' : ''}>${escapeHtml(h.crotal)}${h.nombre ? ' — ' + h.nombre : ''}</option>`).join('')}
-        </select>
+        <div id="af-madre-wrap" style="position:relative;">
+          <input class="form-control" id="af-madre-search" placeholder="Buscar por crotal, nombre o últimas cifras…" autocomplete="off"
+            value="${animal?.madreId ? (() => { const m = hembras.find(h => h.id === animal.madreId); return m ? escapeHtml(m.crotal) + (m.nombre ? ' — ' + escapeHtml(m.nombre) : '') : ''; })() : ''}">
+          <input type="hidden" id="af-madre-id" value="${animal?.madreId ?? ''}">
+          <div id="af-madre-list" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:300;background:var(--color-surface,#fff);border:1px solid var(--color-border);border-radius:8px;max-height:200px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,0.12);margin-top:2px;"></div>
+        </div>
       </div>
       <div class="form-group">
         <label class="form-label">Origen</label>
@@ -333,6 +335,49 @@ export async function renderAnimalForm(slot, animal, onSave) {
       <button class="btn btn-primary" id="af-save">Guardar</button>
     </div>`;
 
+  const madreSearch = slot.querySelector('#af-madre-search');
+  const madreIdInput = slot.querySelector('#af-madre-id');
+  const madreListEl = slot.querySelector('#af-madre-list');
+
+  const matchMadre = (h, q) => {
+    if (h.crotal?.toLowerCase().includes(q)) return true;
+    if (h.nombre?.toLowerCase().includes(q)) return true;
+    if (/^\d+$/.test(q)) return h.crotal?.replace(/\D/g, '').endsWith(q);
+    return false;
+  };
+
+  const renderMadreList = (q) => {
+    const items = q ? hembras.filter(h => matchMadre(h, q.toLowerCase().trim())) : hembras;
+    if (items.length === 0 && q) { madreListEl.style.display = 'none'; return; }
+    madreListEl.style.display = 'block';
+    madreListEl.innerHTML = [
+      `<div class="madre-opt" data-id="" style="padding:8px 12px;cursor:pointer;font-size:0.88rem;color:var(--color-text-muted);border-bottom:1px solid var(--color-border);">— Sin madre —</div>`,
+      ...items.map(h => `<div class="madre-opt" data-id="${h.id}" style="padding:8px 12px;cursor:pointer;font-size:0.88rem;">${escapeHtml(h.crotal)}${h.nombre ? ' — ' + escapeHtml(h.nombre) : ''}</div>`)
+    ].join('');
+    madreListEl.querySelectorAll('.madre-opt').forEach(el => {
+      el.addEventListener('mouseenter', () => el.style.background = 'var(--color-bg)');
+      el.addEventListener('mouseleave', () => el.style.background = '');
+      el.addEventListener('mousedown', e => {
+        e.preventDefault();
+        madreIdInput.value = el.dataset.id;
+        if (el.dataset.id) {
+          const h = hembras.find(h => h.id === el.dataset.id);
+          madreSearch.value = h ? `${h.crotal}${h.nombre ? ' — ' + h.nombre : ''}` : '';
+        } else {
+          madreSearch.value = '';
+        }
+        madreListEl.style.display = 'none';
+      });
+    });
+  };
+
+  madreSearch.addEventListener('input', () => {
+    if (!madreSearch.value.trim()) madreIdInput.value = '';
+    renderMadreList(madreSearch.value);
+  });
+  madreSearch.addEventListener('focus', () => renderMadreList(madreSearch.value));
+  madreSearch.addEventListener('blur', () => setTimeout(() => { madreListEl.style.display = 'none'; }, 150));
+
   slot.querySelector('#af-save').addEventListener('click', async () => {
     const crotal = slot.querySelector('#af-crotal').value.trim();
     if (!crotal) { showToast('El crotal es obligatorio', 'error'); return; }
@@ -351,7 +396,7 @@ export async function renderAnimalForm(slot, animal, onSave) {
       sexo: slot.querySelector('#af-sexo').value,
       status: slot.querySelector('#af-status').value,
       fechaNacimiento: slot.querySelector('#af-fecha').value || null,
-      madreId: slot.querySelector('#af-madre').value || null,
+      madreId: slot.querySelector('#af-madre-id').value || null,
       origin: slot.querySelector('#af-origin').value || null,
       notas: slot.querySelector('#af-notas').value.trim() || null,
       explotacionId: slot.querySelector('#af-explotacion')?.value || null,
