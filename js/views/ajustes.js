@@ -54,7 +54,8 @@ function renderDriveSection() {
 
 export async function renderAjustes(container) {
   const explotacion = await getSetting('explotacion_nombre') ?? '';
-  const [categorias, explotaciones] = await Promise.all([getAll('categorias'), getAll('explotaciones')]);
+  const [categorias, explotaciones, empleados] = await Promise.all([getAll('categorias'), getAll('explotaciones'), getAll('empleados')]);
+  let ssPct = parseFloat(await getSetting('ss_porcentaje')) || 30;
 
   container.innerHTML = `
     <div class="page-header"><h1 class="page-title">Ajustes</h1></div>
@@ -92,6 +93,21 @@ export async function renderAjustes(container) {
         <div id="explot-list"></div>
         <div class="divider"></div>
         <button class="btn btn-primary" id="explot-add-btn" style="margin-top:4px;">+ Añadir explotación</button>
+      </div>
+    </div>
+
+    <!-- Empleados -->
+    <div class="settings-section">
+      <div class="settings-section-title">Empleados</div>
+      <div class="card">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+          <span style="font-size:0.9rem;color:var(--color-text-muted);white-space:nowrap;">% SS empleador:</span>
+          <input type="number" class="form-control" id="aj-ss-pct" style="width:80px;" min="0" max="100" step="0.01" value="${ssPct}">
+          <button class="btn btn-sm btn-secondary" id="aj-save-ss">Guardar</button>
+        </div>
+        <div id="empleados-list"></div>
+        <div class="divider"></div>
+        <button class="btn btn-primary" id="empleado-add-btn" style="margin-top:4px;">+ Añadir empleado</button>
       </div>
     </div>
 
@@ -376,6 +392,133 @@ export async function renderAjustes(container) {
     });
   };
   renderExplots();
+
+  const openEditEmpleado = (emp) => {
+    const isNew = !emp;
+    const { overlay } = openModal({
+      title: isNew ? 'Nuevo empleado' : `Editar: ${emp.nombre}`,
+      bodyHtml: `
+        <div class="form-group">
+          <label class="form-label">Nombre *</label>
+          <input class="form-control" id="em-nombre" value="${escapeHtml(emp?.nombre ?? '')}">
+        </div>
+        <div class="grid-2" style="gap:10px;">
+          <div class="form-group" style="margin:0;">
+            <label class="form-label">DNI / NIF</label>
+            <input class="form-control" id="em-dni" value="${escapeHtml(emp?.dni ?? '')}" placeholder="12345678X">
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label class="form-label">Puesto / Rol</label>
+            <input class="form-control" id="em-puesto" value="${escapeHtml(emp?.puesto ?? '')}" placeholder="Ej: Peón">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Sueldo bruto anual (€)</label>
+          <input type="number" inputmode="decimal" class="form-control" id="em-sueldo" min="0" step="0.01" value="${emp?.sueldoBruto ?? ''}" placeholder="0.00">
+        </div>`,
+      footerHtml: `
+        <button class="btn btn-secondary" id="em-cancel">Cancelar</button>
+        <button class="btn btn-primary" id="em-save">${isNew ? 'Añadir' : 'Guardar'}</button>`
+    });
+    if (isNew) overlay.querySelector('#em-nombre').focus();
+    overlay.querySelector('#em-cancel').addEventListener('click', () => overlay.remove());
+    overlay.querySelector('#em-save').addEventListener('click', async () => {
+      const nombre = overlay.querySelector('#em-nombre').value.trim();
+      if (!nombre) { showToast('El nombre es obligatorio', 'error'); return; }
+      const sueldoVal = overlay.querySelector('#em-sueldo').value;
+      const record = {
+        id: emp?.id ?? uid(),
+        nombre,
+        dni: overlay.querySelector('#em-dni').value.trim() || null,
+        puesto: overlay.querySelector('#em-puesto').value.trim() || null,
+        sueldoBruto: sueldoVal !== '' ? Number(sueldoVal) : null,
+      };
+      await put('empleados', record);
+      const idx = empleados.findIndex(e => e.id === record.id);
+      if (idx !== -1) empleados[idx] = record;
+      else empleados.push(record);
+      overlay.remove();
+      renderEmpleados();
+      showToast(isNew ? 'Empleado añadido' : 'Empleado actualizado');
+    });
+  };
+
+  const renderEmpleados = () => {
+    const list = container.querySelector('#empleados-list');
+    const ss = parseFloat(container.querySelector('#aj-ss-pct')?.value) || ssPct;
+    const sorted = [...empleados].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+
+    if (sorted.length === 0) {
+      list.innerHTML = `<div class="empty-state" style="padding:20px;"><p>Sin empleados registrados.</p></div>`;
+      return;
+    }
+
+    const filas = sorted.map(e => {
+      const bruto = e.sueldoBruto || 0;
+      const ssCost = bruto * ss / 100;
+      const total = bruto + ssCost;
+      const extras = [
+        e.puesto ? escapeHtml(e.puesto) : '',
+        e.dni ? `DNI: ${escapeHtml(e.dni)}` : '',
+      ].filter(Boolean).join(' · ');
+      return `<div style="padding:10px 0;border-bottom:1px solid var(--color-border);">
+        <div style="display:flex;align-items:flex-start;gap:8px;">
+          <div style="flex:1;min-width:0;">
+            <div style="font-weight:600;">${escapeHtml(e.nombre)}</div>
+            ${extras ? `<div style="margin-top:2px;font-size:0.85rem;color:var(--color-text-muted);">${extras}</div>` : ''}
+            ${bruto > 0 ? `<div style="margin-top:4px;font-size:0.82rem;color:var(--color-text-muted);">
+              Bruto: <strong style="color:var(--color-text)">${formatEur(bruto)}</strong> &nbsp;
+              SS (${ss}%): <strong style="color:var(--color-text)">${formatEur(ssCost)}</strong> &nbsp;
+              Total: <strong style="color:var(--color-primary)">${formatEur(total)}</strong>
+            </div>` : ''}
+          </div>
+          <button class="btn btn-sm btn-secondary" data-empedit="${e.id}" title="Editar">✏️</button>
+          <button class="btn btn-sm btn-danger" data-empdel="${e.id}" title="Eliminar">🗑</button>
+        </div>
+      </div>`;
+    }).join('');
+
+    const totalBruto = sorted.reduce((s, e) => s + (e.sueldoBruto || 0), 0);
+    const totalSS = totalBruto * ss / 100;
+    const totalCoste = totalBruto + totalSS;
+    const totales = totalBruto > 0 ? `<div style="display:flex;gap:20px;padding:10px 0;font-size:0.88rem;flex-wrap:wrap;color:var(--color-text-muted);">
+      <span>Bruto total: <strong style="color:var(--color-text)">${formatEur(totalBruto)}</strong></span>
+      <span>SS total: <strong style="color:var(--color-text)">${formatEur(totalSS)}</strong></span>
+      <span>Coste total: <strong style="color:var(--color-primary)">${formatEur(totalCoste)}</strong></span>
+    </div>` : '';
+
+    list.innerHTML = filas + totales;
+
+    list.querySelectorAll('[data-empedit]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const emp = empleados.find(e => e.id === btn.dataset.empedit);
+        if (emp) openEditEmpleado(emp);
+      });
+    });
+    list.querySelectorAll('[data-empdel]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const idx = empleados.findIndex(e => e.id === btn.dataset.empdel);
+        if (idx !== -1) {
+          await remove('empleados', empleados[idx].id);
+          empleados.splice(idx, 1);
+          renderEmpleados();
+          showToast('Empleado eliminado');
+        }
+      });
+    });
+  };
+  renderEmpleados();
+
+  container.querySelector('#aj-save-ss').addEventListener('click', async () => {
+    const pct = parseFloat(container.querySelector('#aj-ss-pct').value);
+    if (isNaN(pct) || pct < 0 || pct > 100) { showToast('Porcentaje no válido', 'error'); return; }
+    await setSetting('ss_porcentaje', pct);
+    ssPct = pct;
+    renderEmpleados();
+    showToast('Porcentaje SS guardado');
+  });
+
+  container.querySelector('#empleado-add-btn').addEventListener('click', () => openEditEmpleado(null));
 
   container.querySelector('#explot-add-btn').addEventListener('click', () => {
     const { overlay } = openModal({
