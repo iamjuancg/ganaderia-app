@@ -538,24 +538,6 @@ canvas { display: block; width: 100% !important; }
 .recent-event-main { flex: 1; }
 .recent-event-date { font-size: 0.78rem; color: var(--color-text-muted); white-space: nowrap; }
 
-/* ── Titular filter (inline en page-header) ── */
-.titular-slot { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
-.titular-bar-icon { font-size: 0.88rem; color: var(--color-text-muted); }
-.titular-tabs { display: flex; gap: 4px; flex-wrap: wrap; }
-.titular-tab {
-  background: #fff;
-  color: var(--color-text-muted);
-  border: 1.5px solid var(--color-border);
-  border-radius: 20px;
-  padding: 4px 14px;
-  font-size: 0.82rem;
-  cursor: pointer;
-  transition: all var(--transition);
-  white-space: nowrap;
-}
-.titular-tab:hover { border-color: var(--color-primary-light); color: var(--color-primary); background: var(--color-success-light); }
-.titular-tab.active { background: var(--color-primary); color: #fff; border-color: var(--color-primary); font-weight: 600; }
-
 /* ── Ajustes ── */
 .settings-section { margin-bottom: 32px; }
 .settings-section-title {

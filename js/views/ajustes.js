@@ -3,7 +3,7 @@ import { uid, escapeHtml, CATEGORIAS_DEFECTO, downloadFile, csvRow, formatEur } 
 import { formatDate } from '../utils/date.js';
 import { showToast } from '../utils/toast.js';
 import { openModal, confirmModal } from '../utils/modal.js';
-import { updateExplotacionName, renderTitularBar } from '../utils/appstate.js';
+import { updateExplotacionName } from '../utils/appstate.js';
 import {
   gdriveIsConfigured, gdriveIsAuthenticated, gdriveHasSavedConnection,
   gdriveGetLastSync, gdriveSignIn, gdriveSignInSilent, gdriveSignOut,
@@ -160,8 +160,6 @@ export async function renderAjustes(container) {
         <button class="btn btn-danger" id="btn-delete-all">🗑 Borrar todo</button>
       </div>
     </div>`;
-
-  await renderTitularBar(container);
 
   let catTab = 'ingreso';
   const renderCats = () => {
@@ -608,7 +606,6 @@ export async function renderAjustes(container) {
       if (idx !== -1) titulares[idx] = record; else titulares.push(record);
       overlay.remove();
       renderTitulares();
-      await renderTitularBar(container);
       showToast(isNew ? 'Titular añadido' : 'Titular actualizado');
     });
   };
@@ -650,7 +647,6 @@ export async function renderAjustes(container) {
             await remove('titulares', id);
             titulares.splice(titulares.findIndex(t => t.id === id), 1);
             renderTitulares();
-            await renderTitularBar(container);
             showToast('Titular eliminado');
           });
           return;
@@ -709,7 +705,6 @@ export async function renderAjustes(container) {
           await remove('titulares', id);
           titulares.splice(titulares.findIndex(t => t.id === id), 1);
           renderTitulares();
-          await renderTitularBar(container);
           showToast('Titular eliminado');
         });
       });

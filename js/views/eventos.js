@@ -4,7 +4,7 @@ import { formatDate, todayISO } from '../utils/date.js';
 import { showToast } from '../utils/toast.js';
 import { openModal, confirmModal } from '../utils/modal.js';
 import { buildDropdown, initDropdownCloser } from '../utils/dropdown.js';
-import { getActiveTitularId, renderTitularBar } from '../utils/appstate.js';
+import { getActiveTitularId, renderTitularFilter } from '../utils/appstate.js';
 
 let filterTipos = new Set(), filterFechaDesde = '', filterFechaHasta = '';
 let filterExplotaciones = new Set();
@@ -22,12 +22,13 @@ export async function renderEventos(container) {
       <input type="date" class="form-control" id="ev-filter-desde" value="${filterFechaDesde}" title="Desde" style="width:140px;">
       <input type="date" class="form-control" id="ev-filter-hasta" value="${filterFechaHasta}" title="Hasta" style="width:140px;">
       ${_explotaciones.length > 0 ? `<div id="ev-dropdown-explot" class="fi-dropdown"></div>` : ''}
+      <div id="ev-dropdown-titular" class="fi-dropdown"></div>
       <button class="btn btn-sm btn-secondary" id="ev-clear-filters" style="display:none;">✕ Limpiar</button>
     </div>
     <div id="eventos-list"></div>`;
 
-  await renderTitularBar(container);
   const refresh = () => loadEventos(container);
+  await renderTitularFilter(container, 'ev-dropdown-titular', refresh);
 
   container.querySelector('#ev-filter-desde').addEventListener('change', e => { filterFechaDesde = e.target.value; refresh(); });
   container.querySelector('#ev-filter-hasta').addEventListener('change', e => { filterFechaHasta = e.target.value; refresh(); });

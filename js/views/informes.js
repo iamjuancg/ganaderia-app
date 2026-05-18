@@ -2,7 +2,7 @@ import { getAll } from '../db/database.js';
 import { formatEur, escapeHtml } from '../utils/format.js';
 import { currentYear, getYear } from '../utils/date.js';
 import { buildDropdown, initDropdownCloser } from '../utils/dropdown.js';
-import { renderTitularBar } from '../utils/appstate.js';
+import { renderTitularFilter } from '../utils/appstate.js';
 
 let selectedYear = currentYear();
 let filterExplotaciones = new Set();
@@ -30,12 +30,13 @@ export async function renderInformes(container) {
       <div id="inf-dropdown-explot" class="fi-dropdown"></div>
       <div id="inf-dropdown-ing" class="fi-dropdown"></div>
       <div id="inf-dropdown-gast" class="fi-dropdown"></div>
+      <div id="inf-dropdown-titular" class="fi-dropdown"></div>
       <button class="btn btn-sm btn-secondary" id="inf-clear-filters" style="display:none;">✕ Limpiar</button>
     </div>
 
     <div id="inf-content"></div>`;
 
-  await renderTitularBar(container);
+  await renderTitularFilter(container, 'inf-dropdown-titular', () => loadInformes(container));
 
   container.querySelector('#inf-year').addEventListener('change', e => {
     selectedYear = Number(e.target.value);

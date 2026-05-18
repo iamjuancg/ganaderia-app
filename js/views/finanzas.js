@@ -4,7 +4,7 @@ import { formatDate, todayISO, getYear, currentYear } from '../utils/date.js';
 import { showToast } from '../utils/toast.js';
 import { openModal, confirmModal } from '../utils/modal.js';
 import { buildDropdown, initDropdownCloser } from '../utils/dropdown.js';
-import { getActiveTitularId, renderTitularBar } from '../utils/appstate.js';
+import { getActiveTitularId, renderTitularFilter } from '../utils/appstate.js';
 
 let activeTab = 'ingreso', filterYear = currentYear();
 let filterCatsIng = new Set();
@@ -30,6 +30,7 @@ export async function renderFinanzas(container) {
       <div id="fi-dropdown-explot" class="fi-dropdown"></div>
       <div id="fi-dropdown-ing" class="fi-dropdown"></div>
       <div id="fi-dropdown-gast" class="fi-dropdown"></div>
+      <div id="fi-dropdown-titular" class="fi-dropdown"></div>
       <button class="btn btn-sm btn-secondary" id="fi-clear-filters" style="display:none;">✕ Limpiar</button>
     </div>
 
@@ -42,8 +43,8 @@ export async function renderFinanzas(container) {
 
     <div id="finanzas-list"></div>`;
 
-  await renderTitularBar(container);
   const refresh = () => loadFinanzas(container);
+  await renderTitularFilter(container, 'fi-dropdown-titular', refresh);
 
   container.querySelector('#btn-nuevo-ingreso').addEventListener('click', () => {
     const { overlay } = openModal({ title: 'Nuevo ingreso', bodyHtml: '<div id="tf-slot"></div>' });

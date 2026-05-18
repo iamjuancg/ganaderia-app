@@ -65,7 +65,6 @@ function setupSidebarToggle() {
 
 function setupRouter() {
   window.addEventListener('hashchange', () => navigate(location.hash.slice(1)));
-  window.addEventListener('titular-changed', () => navigate(location.hash.slice(1) || 'dashboard'));
 
   document.querySelectorAll('.nav-item').forEach(a => {
     a.addEventListener('click', e => {

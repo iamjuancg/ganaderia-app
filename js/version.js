@@ -1,1 +1,1 @@
-export const APP_VERSION = 'multi-titular';
+export const APP_VERSION = 'titular-dropdown';

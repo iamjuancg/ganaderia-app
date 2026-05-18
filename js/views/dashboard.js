@@ -2,7 +2,8 @@ import { getAll } from '../db/database.js';
 import { formatEur, eventoIcon, eventoLabel } from '../utils/format.js';
 import { formatDate, currentYear, getYear, getYearMonth } from '../utils/date.js';
 import { openModal } from '../utils/modal.js';
-import { getActiveTitularId, renderTitularBar } from '../utils/appstate.js';
+import { getActiveTitularId, renderTitularFilter } from '../utils/appstate.js';
+import { initDropdownCloser } from '../utils/dropdown.js';
 import { renderAnimalForm } from './animales.js';
 import { renderTransaccionForm } from './finanzas.js';
 
@@ -52,6 +53,10 @@ export async function renderDashboard(container) {
   container.innerHTML = `
     <div class="page-header">
       <h1 class="page-title">Dashboard</h1>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+      <div id="db-dropdown-titular" class="fi-dropdown"></div>
     </div>
 
     <!-- Acciones rápidas -->
@@ -116,7 +121,8 @@ export async function renderDashboard(container) {
         </div>`}
   `;
 
-  await renderTitularBar(container);
+  initDropdownCloser();
+  await renderTitularFilter(container, 'db-dropdown-titular', () => renderDashboard(container));
   drawBarChart(monthData);
 
   container.querySelector('#qa-nuevo-animal').addEventListener('click', () => {

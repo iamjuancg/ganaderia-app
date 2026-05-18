@@ -3,7 +3,8 @@ import { uid, ESPECIES, TIPOS_EVENTO, escapeHtml, formatEur, eventoLabel } from 
 import { formatDate, todayISO } from '../utils/date.js';
 import { showToast } from '../utils/toast.js';
 import { openModal, confirmModal } from '../utils/modal.js';
-import { getActiveTitularId, renderTitularBar } from '../utils/appstate.js';
+import { getActiveTitularId, renderTitularFilter } from '../utils/appstate.js';
+import { initDropdownCloser } from '../utils/dropdown.js';
 import { renderEventoForm } from './eventos.js';
 
 let sortField = 'crotal', sortDir = 1;
@@ -47,6 +48,7 @@ export async function renderAnimales(container) {
         <option value="">Todas las explotaciones</option>
         ${_explotaciones.map(e => `<option value="${e.id}" ${filterExplotacion === e.id ? 'selected' : ''}>${escapeHtml(e.nombre)}</option>`).join('')}
       </select>` : ''}
+      <div id="an-dropdown-titular" class="fi-dropdown"></div>
     </div>
 
     <div id="animales-list"></div>
@@ -57,8 +59,9 @@ export async function renderAnimales(container) {
       <button class="btn" id="btn-desel-all" style="background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3);">✕ Deseleccionar</button>
     </div>`;
 
-  await renderTitularBar(container);
   const refresh = () => loadAnimales(container);
+  initDropdownCloser();
+  await renderTitularFilter(container, 'an-dropdown-titular', refresh);
 
   container.querySelector('#btn-nuevo-animal').addEventListener('click', () => {
     const { overlay } = openModal({ title: 'Nuevo animal', bodyHtml: '<div id="af-slot"></div>' });
