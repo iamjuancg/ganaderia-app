@@ -3,11 +3,13 @@ import { uid, ESPECIES, TIPOS_EVENTO, escapeHtml, formatEur, eventoLabel } from 
 import { formatDate, todayISO } from '../utils/date.js';
 import { showToast } from '../utils/toast.js';
 import { openModal, confirmModal } from '../utils/modal.js';
+import { getActiveTitularId } from '../utils/appstate.js';
 import { renderEventoForm } from './eventos.js';
 
 let sortField = 'crotal', sortDir = 1;
 let filterEspecie = '', filterStatus = 'activo', filterSearch = '', filterExplotacion = '';
 let _explotaciones = [];
+let _titulares = [];
 let selectedAnimalIds = new Set();
 
 function updateSelectionBar(container) {
@@ -20,7 +22,7 @@ function updateSelectionBar(container) {
 }
 
 export async function renderAnimales(container) {
-  _explotaciones = await getAll('explotaciones');
+  [_explotaciones, _titulares] = await Promise.all([getAll('explotaciones'), getAll('titulares')]);
 
   container.innerHTML = `
     <div class="page-header">
@@ -106,6 +108,8 @@ async function loadAnimales(container) {
     });
   }
   if (filterExplotacion) animales = animales.filter(a => a.explotacionId === filterExplotacion);
+  const activeTitularId = getActiveTitularId();
+  if (activeTitularId !== 'all') animales = animales.filter(a => a.titularId === activeTitularId);
   animales.sort((a, b) => {
     const va = a[sortField] ?? ''; const vb = b[sortField] ?? '';
     return String(va).localeCompare(String(vb)) * sortDir;
@@ -126,6 +130,7 @@ async function loadAnimales(container) {
 
   const explotMap = Object.fromEntries(_explotaciones.map(e => [e.id, e.nombre]));
   const showExplot = _explotaciones.length > 0;
+  const showTitular = _titulares.length > 0;
   const allSelected = animales.length > 0 && animales.every(a => selectedAnimalIds.has(a.id));
   const someSelected = animales.some(a => selectedAnimalIds.has(a.id));
 
@@ -139,6 +144,7 @@ async function loadAnimales(container) {
         ${['crotal','nombre','especie','raza','sexo','status','fechaNacimiento','currentWeight'].map(f => `
           <th data-field="${f}" class="${sortField === f ? 'sorted' : ''}">${colLabel(f)} ${sortField === f ? (sortDir === 1 ? '▲' : '▼') : ''}</th>`).join('')}
         ${showExplot ? '<th>Explotación</th>' : ''}
+        ${showTitular ? '<th>Titular</th>' : ''}
         <th>Acciones</th>
       </tr></thead>
       <tbody>${animales.map(a => animalRow(a, explotMap, showExplot)).join('')}</tbody>
@@ -215,6 +221,7 @@ async function loadAnimales(container) {
 
 function animalCard(a, explotMap, showExplot) {
   const explotNombre = showExplot && a.explotacionId ? explotMap[a.explotacionId] : null;
+  const titularNombre = _titulares.length > 0 ? (_titulares.find(t => t.id === a.titularId)?.nombre ?? null) : null;
   const checked = selectedAnimalIds.has(a.id) ? 'checked' : '';
   return `<div class="animal-card" style="position:relative;">
     <div style="position:absolute;top:10px;left:10px;z-index:1;">
@@ -227,6 +234,7 @@ function animalCard(a, explotMap, showExplot) {
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
         <span class="badge badge-${a.status}">${a.status}</span>
+        ${titularNombre ? `<span class="badge" style="background:var(--color-primary-light);color:#fff;font-size:0.7rem;">👤 ${escapeHtml(titularNombre)}</span>` : ''}
         ${explotNombre ? `<span class="badge" style="background:var(--color-border);color:var(--color-text-muted);font-size:0.7rem;">${escapeHtml(explotNombre)}</span>` : ''}
       </div>
     </div>
@@ -247,6 +255,8 @@ function animalCard(a, explotMap, showExplot) {
 
 function animalRow(a, explotMap, showExplot) {
   const explotNombre = showExplot && a.explotacionId ? explotMap[a.explotacionId] : null;
+  const showTitular = _titulares.length > 0;
+  const titularNombre = showTitular ? (_titulares.find(t => t.id === a.titularId)?.nombre ?? '—') : null;
   const checked = selectedAnimalIds.has(a.id) ? 'checked' : '';
   return `<tr>
     <td><input type="checkbox" class="animal-check" data-id="${a.id}" ${checked}></td>
@@ -259,6 +269,7 @@ function animalRow(a, explotMap, showExplot) {
     <td>${formatDate(a.fechaNacimiento)}</td>
     <td>${a.currentWeight ? a.currentWeight + ' kg' : '—'}</td>
     ${showExplot ? `<td>${explotNombre ? escapeHtml(explotNombre) : '<span class="text-muted">—</span>'}</td>` : ''}
+    ${showTitular ? `<td>${titularNombre !== '—' ? escapeHtml(titularNombre) : '<span class="text-muted">—</span>'}</td>` : ''}
     <td class="td-actions">
       <button class="btn btn-sm btn-ghost" data-action="detail" data-id="${a.id}">Ficha</button>
       <button class="btn btn-sm btn-secondary" data-action="evento" data-id="${a.id}">+ Evento</button>
@@ -335,6 +346,9 @@ async function renderBulkEventoForm(slot, animals, onSave) {
     const fechaISO = new Date(fecha).toISOString();
     const batchId = uid();
 
+    const titularIdSet = new Set(animals.map(a => a.titularId ?? null));
+    const batchTitularId = titularIdSet.size === 1 ? [...titularIdSet][0] : null;
+
     let batchTransaccionId = null;
     if ((tipo === 'venta' || tipo === 'compra') && importe) {
       batchTransaccionId = uid();
@@ -348,6 +362,7 @@ async function renderBulkEventoForm(slot, animals, onSave) {
         descripcion: `${tipo === 'venta' ? 'Venta' : 'Compra'} lote: ${animals.length} animales`,
         referencia: null,
         explotacionId: firstAnim.explotacionId ?? null,
+        titularId: batchTitularId,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
@@ -445,7 +460,7 @@ async function openDetalle(id, container) {
 }
 
 export async function renderAnimalForm(slot, animal, onSave) {
-  const [allAnimales, explotaciones] = await Promise.all([getAll('animales'), getAll('explotaciones')]);
+  const [allAnimales, explotaciones, titulares] = await Promise.all([getAll('animales'), getAll('explotaciones'), getAll('titulares')]);
   const hembras = allAnimales.filter(a => a.sexo === 'hembra' && a.id !== animal?.id);
 
   slot.innerHTML = `
@@ -510,6 +525,14 @@ export async function renderAnimalForm(slot, animal, onSave) {
         <select class="form-control" id="af-explotacion">
           <option value="">— Sin asignar —</option>
           ${explotaciones.map(e => `<option value="${e.id}" ${animal?.explotacionId === e.id ? 'selected' : ''}>${escapeHtml(e.nombre)}</option>`).join('')}
+        </select>
+      </div>` : ''}
+      ${titulares.length > 0 ? `
+      <div class="form-group">
+        <label class="form-label">Titular</label>
+        <select class="form-control" id="af-titular">
+          <option value="">— Sin asignar —</option>
+          ${titulares.map(t => `<option value="${t.id}" ${animal?.titularId === t.id ? 'selected' : ''}>${escapeHtml(t.nombre)}</option>`).join('')}
         </select>
       </div>` : ''}
     </div>
@@ -586,6 +609,7 @@ export async function renderAnimalForm(slot, animal, onSave) {
       origin: slot.querySelector('#af-origin').value || null,
       notas: slot.querySelector('#af-notas').value.trim() || null,
       explotacionId: slot.querySelector('#af-explotacion')?.value || null,
+      titularId: slot.querySelector('#af-titular')?.value || null,
       currentWeight: animal?.currentWeight ?? null,
       weightDate: animal?.weightDate ?? null,
       createdAt: animal?.createdAt ?? now,

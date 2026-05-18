@@ -3,7 +3,7 @@ import { uid, escapeHtml, CATEGORIAS_DEFECTO, downloadFile, csvRow, formatEur } 
 import { formatDate } from '../utils/date.js';
 import { showToast } from '../utils/toast.js';
 import { openModal, confirmModal } from '../utils/modal.js';
-import { updateExplotacionName, updateTitularBar } from '../utils/appstate.js';
+import { updateExplotacionName, renderTitularBar } from '../utils/appstate.js';
 import {
   gdriveIsConfigured, gdriveIsAuthenticated, gdriveHasSavedConnection,
   gdriveGetLastSync, gdriveSignIn, gdriveSignInSilent, gdriveSignOut,
@@ -53,32 +53,21 @@ function renderDriveSection() {
 }
 
 export async function renderAjustes(container) {
-  const [explotacion, titularNombre, titularNif] = await Promise.all([
-    getSetting('explotacion_nombre'),
-    getSetting('titular_nombre'),
-    getSetting('titular_nif'),
-  ]);
-  const [categorias, explotaciones, empleados] = await Promise.all([getAll('categorias'), getAll('explotaciones'), getAll('empleados')]);
+  const explotacion = await getSetting('explotacion_nombre');
+  const [categorias, explotaciones, empleados, titulares] = await Promise.all([getAll('categorias'), getAll('explotaciones'), getAll('empleados'), getAll('titulares')]);
   let ssPct = parseFloat(await getSetting('ss_porcentaje')) || 30;
 
   container.innerHTML = `
     <div class="page-header"><h1 class="page-title">Ajustes</h1></div>
 
-    <!-- Titular -->
+    <!-- Titulares -->
     <div class="settings-section">
-      <div class="settings-section-title">Titular</div>
+      <div class="settings-section-title">Titulares</div>
       <div class="card">
-        <div class="grid-2">
-          <div class="form-group">
-            <label class="form-label">Nombre / Razón social</label>
-            <input class="form-control" id="aj-titular-nombre" value="${escapeHtml(titularNombre ?? '')}" placeholder="Ej: Juan García López">
-          </div>
-          <div class="form-group">
-            <label class="form-label">NIF / CIF</label>
-            <input class="form-control" id="aj-titular-nif" value="${escapeHtml(titularNif ?? '')}" placeholder="Ej: 12345678X">
-          </div>
-        </div>
-        <button class="btn btn-primary" id="aj-save-titular">Guardar titular</button>
+        <p class="text-muted text-small" style="margin-bottom:12px;">Cada titular tiene su propio P&amp;L. Los gastos sin titular asignado se reparten proporcionalmente entre todos.</p>
+        <div id="titulares-list"></div>
+        <div class="divider"></div>
+        <button class="btn btn-primary" id="titular-add-btn" style="margin-top:4px;">+ Añadir titular</button>
       </div>
     </div>
 
@@ -588,14 +577,145 @@ export async function renderAjustes(container) {
     });
   });
 
-  container.querySelector('#aj-save-titular').addEventListener('click', async () => {
-    const nombre = container.querySelector('#aj-titular-nombre').value.trim();
-    const nif = container.querySelector('#aj-titular-nif').value.trim();
-    await setSetting('titular_nombre', nombre || null);
-    await setSetting('titular_nif', nif || null);
-    await updateTitularBar();
-    showToast('Titular guardado');
-  });
+  const openEditTitular = (tit) => {
+    const isNew = !tit;
+    const { overlay } = openModal({
+      title: isNew ? 'Nuevo titular' : `Editar: ${tit.nombre}`,
+      bodyHtml: `
+        <div class="form-group">
+          <label class="form-label">Nombre / Razón social *</label>
+          <input class="form-control" id="ti-nombre" value="${escapeHtml(tit?.nombre ?? '')}" placeholder="Ej: Juan García López">
+        </div>
+        <div class="form-group">
+          <label class="form-label">NIF / CIF</label>
+          <input class="form-control" id="ti-nif" value="${escapeHtml(tit?.nif ?? '')}" placeholder="Ej: 12345678X">
+        </div>`,
+      footerHtml: `
+        <button class="btn btn-secondary" id="ti-cancel">Cancelar</button>
+        <button class="btn btn-primary" id="ti-save">${isNew ? 'Añadir' : 'Guardar'}</button>`
+    });
+    overlay.querySelector('#ti-nombre').focus();
+    overlay.querySelector('#ti-cancel').addEventListener('click', () => overlay.remove());
+    overlay.querySelector('#ti-save').addEventListener('click', async () => {
+      const nombre = overlay.querySelector('#ti-nombre').value.trim();
+      if (!nombre) { showToast('El nombre es obligatorio', 'error'); return; }
+      const nif = overlay.querySelector('#ti-nif').value.trim() || null;
+      const record = { id: tit?.id ?? uid(), nombre, nif, createdAt: tit?.createdAt ?? new Date().toISOString() };
+      await put('titulares', record);
+      const idx = titulares.findIndex(t => t.id === record.id);
+      if (idx !== -1) titulares[idx] = record; else titulares.push(record);
+      overlay.remove();
+      renderTitulares();
+      await renderTitularBar();
+      showToast(isNew ? 'Titular añadido' : 'Titular actualizado');
+    });
+  };
+
+  const renderTitulares = () => {
+    const list = container.querySelector('#titulares-list');
+    if (titulares.length === 0) {
+      list.innerHTML = `<div class="empty-state" style="padding:20px;"><p>Sin titulares. Añade uno para poder filtrar por titular en todas las vistas.</p></div>`;
+      return;
+    }
+    list.innerHTML = titulares.map(t => `
+      <div style="display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--color-border);">
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:600;">${escapeHtml(t.nombre)}</div>
+          ${t.nif ? `<div style="font-size:0.82rem;color:var(--color-text-muted);">NIF/CIF: ${escapeHtml(t.nif)}</div>` : ''}
+        </div>
+        <button class="btn btn-sm btn-secondary" data-titedit="${t.id}" title="Editar">✏️</button>
+        <button class="btn btn-sm btn-danger" data-titdel="${t.id}" title="Eliminar">🗑</button>
+      </div>`).join('');
+
+    list.querySelectorAll('[data-titedit]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tit = titulares.find(t => t.id === btn.dataset.titedit);
+        if (tit) openEditTitular(tit);
+      });
+    });
+    list.querySelectorAll('[data-titdel]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.titdel;
+        const tit = titulares.find(t => t.id === id);
+        if (!tit) return;
+        const [animales, transacciones] = await Promise.all([getAll('animales'), getAll('transacciones')]);
+        const afAnimales = animales.filter(a => a.titularId === id);
+        const afTx = transacciones.filter(t => t.titularId === id);
+        const otras = titulares.filter(t => t.id !== id);
+
+        if (afAnimales.length === 0 && afTx.length === 0) {
+          confirmModal(`¿Eliminar el titular <strong>${escapeHtml(tit.nombre)}</strong>?`, async () => {
+            await remove('titulares', id);
+            titulares.splice(titulares.findIndex(t => t.id === id), 1);
+            renderTitulares();
+            await renderTitularBar();
+            showToast('Titular eliminado');
+          });
+          return;
+        }
+
+        const detalle = [
+          afAnimales.length > 0 ? `${afAnimales.length} animal${afAnimales.length !== 1 ? 'es' : ''}` : '',
+          afTx.length > 0 ? `${afTx.length} transacción${afTx.length !== 1 ? 'es' : ''}` : '',
+        ].filter(Boolean).join(' y ');
+
+        const { overlay } = openModal({
+          title: `Eliminar: ${tit.nombre}`,
+          bodyHtml: `
+            <p>Este titular tiene <strong>${detalle}</strong> asignados. ¿Qué hacer con ellos?</p>
+            <div style="display:flex;flex-direction:column;gap:14px;margin-top:16px;">
+              <label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer;">
+                <input type="radio" name="tdel-opt" value="unassign" checked style="margin-top:3px;flex-shrink:0;">
+                <span><strong>Dejar sin titular</strong><br><span class="text-muted text-small">Los registros se conservan como "compartidos".</span></span>
+              </label>
+              ${otras.length > 0 ? `
+              <label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer;">
+                <input type="radio" name="tdel-opt" value="move" style="margin-top:3px;flex-shrink:0;">
+                <span><strong>Mover a otro titular</strong><br>
+                  <select class="form-control" id="tdel-target" style="margin-top:6px;" disabled>
+                    ${otras.map(t => `<option value="${t.id}">${escapeHtml(t.nombre)}</option>`).join('')}
+                  </select>
+                </span>
+              </label>` : ''}
+            </div>`,
+          footerHtml: `
+            <button class="btn btn-secondary" id="tdel-cancel">Cancelar</button>
+            <button class="btn btn-danger" id="tdel-confirm">Eliminar titular</button>`
+        });
+        overlay.querySelectorAll('[name="tdel-opt"]').forEach(r => {
+          r.addEventListener('change', () => {
+            const sel = overlay.querySelector('#tdel-target');
+            if (sel) sel.disabled = r.value !== 'move' || !r.checked;
+          });
+        });
+        overlay.querySelector('#tdel-cancel').addEventListener('click', () => overlay.remove());
+        overlay.querySelector('#tdel-confirm').addEventListener('click', async () => {
+          const action = overlay.querySelector('[name="tdel-opt"]:checked')?.value;
+          const targetId = overlay.querySelector('#tdel-target')?.value ?? null;
+          overlay.remove();
+          if (action === 'unassign') {
+            await Promise.all([
+              ...afAnimales.map(a => put('animales', { ...a, titularId: null })),
+              ...afTx.map(t => put('transacciones', { ...t, titularId: null })),
+            ]);
+          } else if (action === 'move' && targetId) {
+            await Promise.all([
+              ...afAnimales.map(a => put('animales', { ...a, titularId: targetId })),
+              ...afTx.map(t => put('transacciones', { ...t, titularId: targetId })),
+            ]);
+          }
+          await remove('titulares', id);
+          titulares.splice(titulares.findIndex(t => t.id === id), 1);
+          renderTitulares();
+          await renderTitularBar();
+          showToast('Titular eliminado');
+        });
+      });
+    });
+  };
+  renderTitulares();
+
+  container.querySelector('#titular-add-btn').addEventListener('click', () => openEditTitular(null));
 
   container.querySelector('#aj-save-nombre').addEventListener('click', async () => {
     const name = container.querySelector('#aj-nombre').value.trim();

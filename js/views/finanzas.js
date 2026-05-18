@@ -4,6 +4,7 @@ import { formatDate, todayISO, getYear, currentYear } from '../utils/date.js';
 import { showToast } from '../utils/toast.js';
 import { openModal, confirmModal } from '../utils/modal.js';
 import { buildDropdown, initDropdownCloser } from '../utils/dropdown.js';
+import { getActiveTitularId } from '../utils/appstate.js';
 
 let activeTab = 'ingreso', filterYear = currentYear();
 let filterCatsIng = new Set();
@@ -84,12 +85,16 @@ async function getAvailableYears() {
 }
 
 async function loadFinanzas(container) {
-  const [transacciones, categorias, explotaciones] = await Promise.all([
-    getAll('transacciones'), getAll('categorias'), getAll('explotaciones')
+  const [transacciones, categorias, explotaciones, titulares] = await Promise.all([
+    getAll('transacciones'), getAll('categorias'), getAll('explotaciones'), getAll('titulares')
   ]);
   const catMap = Object.fromEntries(categorias.map(c => [c.id, c]));
   const explotMap = Object.fromEntries(explotaciones.map(e => [e.id, e.nombre]));
+  const titularMap = Object.fromEntries(titulares.map(t => [t.id, t.nombre]));
   const showExplot = explotaciones.length > 0;
+  const showTitular = titulares.length > 0;
+  const numTitulares = titulares.length;
+  const activeTitularId = getActiveTitularId();
 
   const catIngresos = categorias.filter(c => c.tipo === 'ingreso');
   const catGastos = categorias.filter(c => c.tipo === 'gasto');
@@ -101,31 +106,40 @@ async function loadFinanzas(container) {
   buildDropdown(container, 'fi-dropdown-gast', 'Gastos',
     catGastos, filterCatsGast, () => loadFinanzas(container));
 
-  // Limpiar button visibility
   const activeCount = filterExplotaciones.size + filterCatsIng.size + filterCatsGast.size;
   const clearBtn = container.querySelector('#fi-clear-filters');
   if (clearBtn) clearBtn.style.display = activeCount > 0 ? '' : 'none';
 
-  // --- Tabs ---
   container.querySelectorAll('.tab-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === activeTab));
 
+  // Filtro titular: para listas, incluir transacciones del titular + las compartidas (titularId === null)
+  const titularMatch = (t) => {
+    if (activeTitularId === 'all') return true;
+    return t.titularId === activeTitularId || t.titularId === null;
+  };
+  // Importe efectivo: para titular específico, las compartidas se dividen entre numTitulares
+  const efectiveImporte = (t) => {
+    if (activeTitularId === 'all' || t.titularId === activeTitularId || numTitulares === 0) return t.importe;
+    return t.importe / numTitulares;
+  };
+
   // --- Filtrado lista ---
-  let filtered = transacciones.filter(t => t.tipo === activeTab && getYear(t.fecha) === filterYear);
+  let filtered = transacciones.filter(t => t.tipo === activeTab && getYear(t.fecha) === filterYear && titularMatch(t));
   if (filterExplotaciones.size > 0) filtered = filtered.filter(t => filterExplotaciones.has(t.explotacionId));
   if (activeTab === 'ingreso' && filterCatsIng.size > 0) filtered = filtered.filter(t => filterCatsIng.has(t.categoriaId));
   if (activeTab === 'gasto' && filterCatsGast.size > 0) filtered = filtered.filter(t => filterCatsGast.has(t.categoriaId));
   filtered.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
 
-  // --- Summary (respeta ambos filtros) ---
-  let forSummary = transacciones.filter(t => getYear(t.fecha) === filterYear);
+  // --- Summary ---
+  let forSummary = transacciones.filter(t => getYear(t.fecha) === filterYear && titularMatch(t));
   if (filterExplotaciones.size > 0) forSummary = forSummary.filter(t => filterExplotaciones.has(t.explotacionId));
   let summaryIng = forSummary.filter(t => t.tipo === 'ingreso');
   let summaryGast = forSummary.filter(t => t.tipo === 'gasto');
   if (filterCatsIng.size > 0) summaryIng = summaryIng.filter(t => filterCatsIng.has(t.categoriaId));
   if (filterCatsGast.size > 0) summaryGast = summaryGast.filter(t => filterCatsGast.has(t.categoriaId));
 
-  const ingresos = summaryIng.reduce((s, t) => s + t.importe, 0);
-  const gastos = summaryGast.reduce((s, t) => s + t.importe, 0);
+  const ingresos = summaryIng.reduce((s, t) => s + efectiveImporte(t), 0);
+  const gastos = summaryGast.reduce((s, t) => s + efectiveImporte(t), 0);
   const balance = ingresos - gastos;
 
   const summaryBar = container.querySelector('#summary-bar-finanzas');
@@ -138,7 +152,7 @@ async function loadFinanzas(container) {
   const list = container.querySelector('#finanzas-list');
   if (!list) return;
 
-  const tabTotal = filtered.reduce((s, t) => s + t.importe, 0);
+  const tabTotal = filtered.reduce((s, t) => s + efectiveImporte(t), 0);
 
   if (filtered.length === 0) {
     list.innerHTML = `<div class="empty-state">
@@ -149,27 +163,33 @@ async function loadFinanzas(container) {
     return;
   }
 
+  const color = activeTab === 'ingreso' ? 'var(--color-primary)' : 'var(--color-danger)';
   list.innerHTML = `
     <div style="text-align:right;margin-bottom:8px;font-size:0.9rem;color:var(--color-text-muted);">
-      Total: <strong style="color:${activeTab === 'ingreso' ? 'var(--color-primary)' : 'var(--color-danger)'}">${formatEur(tabTotal)}</strong>
+      Total: <strong style="color:${color}">${formatEur(tabTotal)}</strong>
       (${filtered.length} registros)
     </div>
     <div class="table-container"><table>
       <thead><tr>
-        <th>Fecha</th><th>Categoría</th>${showExplot ? '<th>Explotación</th>' : ''}<th>Descripción</th><th>Referencia</th><th style="text-align:right">Importe</th><th>Acciones</th>
+        <th>Fecha</th><th>Categoría</th>${showExplot ? '<th>Explotación</th>' : ''}${showTitular ? '<th>Titular</th>' : ''}<th>Descripción</th><th>Referencia</th><th style="text-align:right">Importe</th><th>Acciones</th>
       </tr></thead>
-      <tbody>${filtered.map(t => `<tr>
-        <td>${formatDate(t.fecha)}</td>
-        <td>${escapeHtml(catMap[t.categoriaId]?.nombre) || '—'}</td>
-        ${showExplot ? `<td>${t.explotacionId ? escapeHtml(explotMap[t.explotacionId] ?? '—') : '<span class="text-muted">—</span>'}</td>` : ''}
-        <td>${escapeHtml(t.descripcion) || '—'}</td>
-        <td>${escapeHtml(t.referencia) || '—'}</td>
-        <td style="text-align:right;font-weight:600;color:${activeTab === 'ingreso' ? 'var(--color-primary)' : 'var(--color-danger)'}">${formatEur(t.importe)}</td>
-        <td class="td-actions">
-          <button class="btn btn-sm btn-secondary" data-action="edit" data-id="${t.id}">Editar</button>
-          <button class="btn btn-sm btn-danger" data-action="delete" data-id="${t.id}">🗑</button>
-        </td>
-      </tr>`).join('')}
+      <tbody>${filtered.map(t => {
+        const isShared = activeTitularId !== 'all' && t.titularId === null;
+        const dispImporte = efectiveImporte(t);
+        return `<tr${isShared ? ' style="opacity:0.8;"' : ''}>
+          <td>${formatDate(t.fecha)}</td>
+          <td>${escapeHtml(catMap[t.categoriaId]?.nombre) || '—'}</td>
+          ${showExplot ? `<td>${t.explotacionId ? escapeHtml(explotMap[t.explotacionId] ?? '—') : '<span class="text-muted">—</span>'}</td>` : ''}
+          ${showTitular ? `<td>${t.titularId ? escapeHtml(titularMap[t.titularId] ?? '—') : '<span class="text-muted" title="Gasto compartido, repartido entre titulares">comp.</span>'}</td>` : ''}
+          <td>${escapeHtml(t.descripcion) || '—'}</td>
+          <td>${escapeHtml(t.referencia) || '—'}</td>
+          <td style="text-align:right;font-weight:600;color:${color}">${formatEur(dispImporte)}${isShared ? `<span style="font-size:0.75rem;font-weight:400;color:var(--color-text-muted);margin-left:4px;" title="Importe total: ${formatEur(t.importe)}">÷${numTitulares}</span>` : ''}</td>
+          <td class="td-actions">
+            <button class="btn btn-sm btn-secondary" data-action="edit" data-id="${t.id}">Editar</button>
+            <button class="btn btn-sm btn-danger" data-action="delete" data-id="${t.id}">🗑</button>
+          </td>
+        </tr>`;
+      }).join('')}
       </tbody>
     </table></div>`;
 
@@ -193,7 +213,7 @@ async function loadFinanzas(container) {
 }
 
 export async function renderTransaccionForm(slot, tipo, tx, onSave) {
-  const [categorias, explotaciones] = await Promise.all([getAll('categorias'), getAll('explotaciones')]);
+  const [categorias, explotaciones, titulares] = await Promise.all([getAll('categorias'), getAll('explotaciones'), getAll('titulares')]);
   const cats = categorias.filter(c => c.tipo === tipo);
 
   slot.innerHTML = `
@@ -219,6 +239,14 @@ export async function renderTransaccionForm(slot, tipo, tx, onSave) {
         <select class="form-control" id="tf-explotacion">
           <option value="">— Sin asignar —</option>
           ${explotaciones.map(e => `<option value="${e.id}" ${tx?.explotacionId === e.id ? 'selected' : ''}>${escapeHtml(e.nombre)}</option>`).join('')}
+        </select>
+      </div>` : ''}
+      ${titulares.length > 0 ? `
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">Titular <span class="text-muted" style="font-weight:normal;">(sin asignar = compartido)</span></label>
+        <select class="form-control" id="tf-titular">
+          <option value="">— Compartido —</option>
+          ${titulares.map(t => `<option value="${t.id}" ${tx?.titularId === t.id ? 'selected' : ''}>${escapeHtml(t.nombre)}</option>`).join('')}
         </select>
       </div>` : ''}
     </div>
@@ -249,6 +277,7 @@ export async function renderTransaccionForm(slot, tipo, tx, onSave) {
       fecha: new Date(fecha).toISOString(),
       categoriaId,
       explotacionId: slot.querySelector('#tf-explotacion')?.value || null,
+      titularId: slot.querySelector('#tf-titular')?.value || null,
       descripcion: slot.querySelector('#tf-desc').value.trim() || null,
       referencia: slot.querySelector('#tf-ref').value.trim() || null,
       createdAt: tx?.createdAt ?? new Date().toISOString(),

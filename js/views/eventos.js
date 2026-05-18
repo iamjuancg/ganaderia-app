@@ -4,6 +4,7 @@ import { formatDate, todayISO } from '../utils/date.js';
 import { showToast } from '../utils/toast.js';
 import { openModal, confirmModal } from '../utils/modal.js';
 import { buildDropdown, initDropdownCloser } from '../utils/dropdown.js';
+import { getActiveTitularId } from '../utils/appstate.js';
 
 let filterTipos = new Set(), filterFechaDesde = '', filterFechaHasta = '';
 let filterExplotaciones = new Set();
@@ -63,6 +64,8 @@ async function loadEventos(container) {
   if (filterFechaDesde) filtered = filtered.filter(e => e.fecha >= filterFechaDesde);
   if (filterFechaHasta) filtered = filtered.filter(e => e.fecha <= filterFechaHasta + 'T23:59:59');
   if (filterExplotaciones.size > 0) filtered = filtered.filter(e => filterExplotaciones.has(animalMap[e.animalId]?.explotacionId));
+  const activeTitularId = getActiveTitularId();
+  if (activeTitularId !== 'all') filtered = filtered.filter(e => animalMap[e.animalId]?.titularId === activeTitularId);
   filtered.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
 
   const list = container.querySelector('#eventos-list');
@@ -360,10 +363,14 @@ async function renderBatchEditForm(slot, events, allAnimales, onSave) {
     }
 
     // Create ONE transaction for the total lot amount
+    const remainingAnimals = remaining.map(ev => freshAnimales.find(a => a.id === ev.animalId));
+    const batchTitularIdSet = new Set(remainingAnimals.map(a => a?.titularId ?? null));
+    const batchTitularId = batchTitularIdSet.size === 1 ? [...batchTitularIdSet][0] : null;
+
     let batchTransaccionId = null;
     if ((tipo === 'venta' || tipo === 'compra') && importe && remaining.length > 0) {
       batchTransaccionId = uid();
-      const firstAnim = freshAnimales.find(a => a.id === remaining[0].animalId);
+      const firstAnim = remainingAnimals[0];
       await put('transacciones', {
         id: batchTransaccionId,
         tipo: tipo === 'venta' ? 'ingreso' : 'gasto',
@@ -373,6 +380,7 @@ async function renderBatchEditForm(slot, events, allAnimales, onSave) {
         descripcion: `${tipo === 'venta' ? 'Venta' : 'Compra'} lote: ${remaining.length} animales`,
         referencia: null,
         explotacionId: firstAnim?.explotacionId ?? null,
+        titularId: batchTitularId,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
@@ -477,6 +485,7 @@ export async function renderEventoForm(slot, animal, onSave, ev = null) {
         descripcion: `${tipo === 'venta' ? 'Venta' : 'Compra'}: ${anim?.crotal ?? ''}${anim?.nombre ? ' — ' + anim.nombre : ''}`,
         referencia: null,
         explotacionId: anim?.explotacionId ?? null,
+        titularId: anim?.titularId ?? null,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });

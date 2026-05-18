@@ -1,1 +1,1 @@
-export const APP_VERSION = 'titular-bar';
+export const APP_VERSION = 'multi-titular';

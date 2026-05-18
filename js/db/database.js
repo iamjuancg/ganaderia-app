@@ -1,5 +1,5 @@
 const DB_NAME = 'GanaderiaDB';
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 let db = null;
 
@@ -47,6 +47,10 @@ export function openDB() {
 
       if (!d.objectStoreNames.contains('empleados')) {
         d.createObjectStore('empleados', { keyPath: 'id' });
+      }
+
+      if (!d.objectStoreNames.contains('titulares')) {
+        d.createObjectStore('titulares', { keyPath: 'id' });
       }
     };
 
@@ -112,7 +116,7 @@ export function setSetting(key, value) {
 }
 
 export async function clearAllStores() {
-  const stores = ['animales', 'eventos', 'transacciones', 'categorias', 'ajustes', 'explotaciones', 'empleados'];
+  const stores = ['animales', 'eventos', 'transacciones', 'categorias', 'ajustes', 'explotaciones', 'empleados', 'titulares'];
   for (const store of stores) {
     await new Promise((res, rej) => {
       const req = tx(store, 'readwrite').clear();
@@ -123,14 +127,14 @@ export async function clearAllStores() {
 }
 
 export async function exportAll() {
-  const [animales, eventos, transacciones, categorias, explotaciones, empleados] = await Promise.all([
-    getAll('animales'), getAll('eventos'), getAll('transacciones'), getAll('categorias'), getAll('explotaciones'), getAll('empleados')
+  const [animales, eventos, transacciones, categorias, explotaciones, empleados, titulares] = await Promise.all([
+    getAll('animales'), getAll('eventos'), getAll('transacciones'), getAll('categorias'), getAll('explotaciones'), getAll('empleados'), getAll('titulares')
   ]);
-  return { animales, eventos, transacciones, categorias, explotaciones, empleados, exportedAt: new Date().toISOString() };
+  return { animales, eventos, transacciones, categorias, explotaciones, empleados, titulares, exportedAt: new Date().toISOString() };
 }
 
 export async function importAll(data) {
-  const stores = ['animales', 'eventos', 'transacciones', 'categorias', 'explotaciones', 'empleados'];
+  const stores = ['animales', 'eventos', 'transacciones', 'categorias', 'explotaciones', 'empleados', 'titulares'];
   for (const store of stores) {
     if (!data[store]) continue;
     for (const record of data[store]) await put(store, record);
@@ -138,7 +142,7 @@ export async function importAll(data) {
 }
 
 export async function replaceAll(data) {
-  const stores = ['animales', 'eventos', 'transacciones', 'categorias', 'explotaciones', 'empleados'];
+  const stores = ['animales', 'eventos', 'transacciones', 'categorias', 'explotaciones', 'empleados', 'titulares'];
   for (const store of stores) {
     await new Promise((res, rej) => {
       const req = tx(store, 'readwrite').clear();
