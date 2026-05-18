@@ -1,1 +1,1 @@
-export const APP_VERSION = 'ca7da59';
+export const APP_VERSION = 'fccb5ba';
