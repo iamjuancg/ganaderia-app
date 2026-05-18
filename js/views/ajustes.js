@@ -103,8 +103,8 @@ export async function renderAjustes(container) {
         </div>
         <div class="grid-2" style="gap:10px;">
           <div class="form-group" style="margin:0;">
-            <label class="form-label">Tamaño <span class="text-muted" style="font-weight:normal;">(opcional)</span></label>
-            <input class="form-control" id="explot-tamano" placeholder="Ej: 150 ha">
+            <label class="form-label">Hectáreas <span class="text-muted" style="font-weight:normal;">(opcional)</span></label>
+            <input type="number" inputmode="decimal" class="form-control" id="explot-tamano" min="0" step="0.01" placeholder="Ej: 150">
           </div>
           <div class="form-group" style="margin:0;">
             <label class="form-label">Renta anual <span class="text-muted" style="font-weight:normal;">(opcional, €)</span></label>
@@ -195,8 +195,8 @@ export async function renderAjustes(container) {
         </div>
         <div class="grid-2" style="gap:10px;">
           <div class="form-group" style="margin:0;">
-            <label class="form-label">Tamaño <span class="text-muted" style="font-weight:normal;">(opcional)</span></label>
-            <input class="form-control" id="ee-tamano" value="${escapeHtml(explot.tamano ?? '')}" placeholder="Ej: 150 ha">
+            <label class="form-label">Hectáreas <span class="text-muted" style="font-weight:normal;">(opcional)</span></label>
+            <input type="number" inputmode="decimal" class="form-control" id="ee-tamano" min="0" step="0.01" value="${explot.tamano ?? ''}" placeholder="Ej: 150">
           </div>
           <div class="form-group" style="margin:0;">
             <label class="form-label">Renta anual <span class="text-muted" style="font-weight:normal;">(€)</span></label>
@@ -211,7 +211,8 @@ export async function renderAjustes(container) {
     overlay.querySelector('#ee-save').addEventListener('click', async () => {
       const nombre = overlay.querySelector('#ee-nombre').value.trim();
       if (!nombre) { showToast('El nombre es obligatorio', 'error'); return; }
-      const tamano = overlay.querySelector('#ee-tamano').value.trim() || null;
+      const tamanoVal = overlay.querySelector('#ee-tamano').value;
+      const tamano = tamanoVal !== '' ? Number(tamanoVal) : null;
       const rentaVal = overlay.querySelector('#ee-renta').value;
       const rentaAnual = rentaVal !== '' && rentaVal !== null ? Number(rentaVal) : null;
       const idx = explotaciones.findIndex(e => e.id === explot.id);
@@ -226,22 +227,31 @@ export async function renderAjustes(container) {
 
   const renderExplots = () => {
     const list = container.querySelector('#explot-list');
-    list.innerHTML = explotaciones.length === 0
-      ? `<div class="empty-state" style="padding:20px;"><p>Sin explotaciones creadas. Añade una para poder asignar animales a cada una.</p></div>`
-      : explotaciones.map(e => {
-          const extras = [
-            e.tamano ? `<span class="text-muted text-small">📐 ${escapeHtml(e.tamano)}</span>` : '',
-            e.rentaAnual != null ? `<span class="text-muted text-small">💶 ${formatEur(e.rentaAnual)}/año</span>` : '',
-          ].filter(Boolean).join(' &nbsp;');
-          return `<div style="display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--color-border);">
-            <div style="flex:1;min-width:0;">
-              <div style="font-weight:600;">${escapeHtml(e.nombre)}</div>
-              ${extras ? `<div style="margin-top:2px;">${extras}</div>` : ''}
-            </div>
-            <button class="btn btn-sm btn-secondary" data-explodit="${e.id}" title="Editar">✏️</button>
-            <button class="btn btn-sm btn-danger" data-explodel="${e.id}" title="Eliminar">🗑</button>
-          </div>`;
-        }).join('');
+    if (explotaciones.length === 0) {
+      list.innerHTML = `<div class="empty-state" style="padding:20px;"><p>Sin explotaciones creadas. Añade una para poder asignar animales a cada una.</p></div>`;
+    } else {
+      const totalHa = explotaciones.reduce((s, e) => s + (parseFloat(e.tamano) || 0), 0);
+      const totalRenta = explotaciones.reduce((s, e) => s + (e.rentaAnual || 0), 0);
+      const filas = explotaciones.map(e => {
+        const extras = [
+          e.tamano != null && e.tamano !== '' ? `<span class="text-muted text-small">📐 ${parseFloat(e.tamano)} ha</span>` : '',
+          e.rentaAnual != null ? `<span class="text-muted text-small">💶 ${formatEur(e.rentaAnual)}/año</span>` : '',
+        ].filter(Boolean).join(' &nbsp;');
+        return `<div style="display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--color-border);">
+          <div style="flex:1;min-width:0;">
+            <div style="font-weight:600;">${escapeHtml(e.nombre)}</div>
+            ${extras ? `<div style="margin-top:2px;">${extras}</div>` : ''}
+          </div>
+          <button class="btn btn-sm btn-secondary" data-explodit="${e.id}" title="Editar">✏️</button>
+          <button class="btn btn-sm btn-danger" data-explodel="${e.id}" title="Eliminar">🗑</button>
+        </div>`;
+      }).join('');
+      const totales = `<div style="display:flex;gap:20px;padding:10px 0;font-size:0.88rem;color:var(--color-text-muted);">
+        ${totalHa > 0 ? `<span><strong style="color:var(--color-text)">${totalHa} ha</strong> total</span>` : ''}
+        ${totalRenta > 0 ? `<span><strong style="color:var(--color-text)">${formatEur(totalRenta)}</strong> renta/año total</span>` : ''}
+      </div>`;
+      list.innerHTML = filas + (totalHa > 0 || totalRenta > 0 ? totales : '');
+    }
     list.querySelectorAll('[data-explodit]').forEach(btn => {
       btn.addEventListener('click', () => {
         const explot = explotaciones.find(e => e.id === btn.dataset.explodit);
@@ -359,7 +369,8 @@ export async function renderAjustes(container) {
   container.querySelector('#explot-add').addEventListener('click', async () => {
     const nombre = container.querySelector('#explot-nueva').value.trim();
     if (!nombre) { showToast('Escribe un nombre', 'error'); return; }
-    const tamano = container.querySelector('#explot-tamano').value.trim() || null;
+    const tamanoVal = container.querySelector('#explot-tamano').value;
+    const tamano = tamanoVal !== '' ? Number(tamanoVal) : null;
     const rentaVal = container.querySelector('#explot-renta').value;
     const rentaAnual = rentaVal !== '' ? Number(rentaVal) : null;
     const nueva = { id: uid(), nombre, tamano, rentaAnual };

@@ -5,7 +5,8 @@ import { showToast } from '../utils/toast.js';
 import { openModal, confirmModal } from '../utils/modal.js';
 
 let activeTab = 'ingreso', filterYear = currentYear();
-let filterCats = new Set();
+let filterCatsIng = new Set();
+let filterCatsGast = new Set();
 let filterExplotaciones = new Set();
 
 export async function renderFinanzas(container) {
@@ -25,7 +26,8 @@ export async function renderFinanzas(container) {
         ${years.map(y => `<option value="${y}" ${filterYear === y ? 'selected' : ''}>${y}</option>`).join('')}
       </select>
       <div id="fi-dropdown-explot" class="fi-dropdown"></div>
-      <div id="fi-dropdown-cat" class="fi-dropdown"></div>
+      <div id="fi-dropdown-ing" class="fi-dropdown"></div>
+      <div id="fi-dropdown-gast" class="fi-dropdown"></div>
       <button class="btn btn-sm btn-secondary" id="fi-clear-filters" style="display:none;">✕ Limpiar</button>
     </div>
 
@@ -52,7 +54,6 @@ export async function renderFinanzas(container) {
   container.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       activeTab = btn.dataset.tab;
-      filterCats = new Set();
       refresh();
     });
   });
@@ -64,7 +65,8 @@ export async function renderFinanzas(container) {
 
   container.querySelector('#fi-clear-filters').addEventListener('click', () => {
     filterExplotaciones = new Set();
-    filterCats = new Set();
+    filterCatsIng = new Set();
+    filterCatsGast = new Set();
     refresh();
   });
 
@@ -183,14 +185,18 @@ async function loadFinanzas(container) {
   const explotMap = Object.fromEntries(explotaciones.map(e => [e.id, e.nombre]));
   const showExplot = explotaciones.length > 0;
 
-  // Build dropdowns — categorías muestra todas (con badge de tipo)
+  const catIngresos = categorias.filter(c => c.tipo === 'ingreso');
+  const catGastos = categorias.filter(c => c.tipo === 'gasto');
+
   buildDropdown(container, 'fi-dropdown-explot', 'Explotación',
     explotaciones, filterExplotaciones, () => loadFinanzas(container));
-  buildDropdown(container, 'fi-dropdown-cat', 'Categoría',
-    categorias, filterCats, () => loadFinanzas(container));
+  buildDropdown(container, 'fi-dropdown-ing', 'Ingresos',
+    catIngresos, filterCatsIng, () => loadFinanzas(container));
+  buildDropdown(container, 'fi-dropdown-gast', 'Gastos',
+    catGastos, filterCatsGast, () => loadFinanzas(container));
 
   // Limpiar button visibility
-  const activeCount = filterExplotaciones.size + filterCats.size;
+  const activeCount = filterExplotaciones.size + filterCatsIng.size + filterCatsGast.size;
   const clearBtn = container.querySelector('#fi-clear-filters');
   if (clearBtn) clearBtn.style.display = activeCount > 0 ? '' : 'none';
 
@@ -200,7 +206,8 @@ async function loadFinanzas(container) {
   // --- Filtrado lista ---
   let filtered = transacciones.filter(t => t.tipo === activeTab && getYear(t.fecha) === filterYear);
   if (filterExplotaciones.size > 0) filtered = filtered.filter(t => filterExplotaciones.has(t.explotacionId));
-  if (filterCats.size > 0) filtered = filtered.filter(t => filterCats.has(t.categoriaId));
+  if (activeTab === 'ingreso' && filterCatsIng.size > 0) filtered = filtered.filter(t => filterCatsIng.has(t.categoriaId));
+  if (activeTab === 'gasto' && filterCatsGast.size > 0) filtered = filtered.filter(t => filterCatsGast.has(t.categoriaId));
   filtered.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
 
   // --- Summary (respeta ambos filtros) ---
@@ -208,8 +215,8 @@ async function loadFinanzas(container) {
   if (filterExplotaciones.size > 0) forSummary = forSummary.filter(t => filterExplotaciones.has(t.explotacionId));
   let summaryIng = forSummary.filter(t => t.tipo === 'ingreso');
   let summaryGast = forSummary.filter(t => t.tipo === 'gasto');
-  if (filterCats.size > 0 && activeTab === 'ingreso') summaryIng = summaryIng.filter(t => filterCats.has(t.categoriaId));
-  if (filterCats.size > 0 && activeTab === 'gasto') summaryGast = summaryGast.filter(t => filterCats.has(t.categoriaId));
+  if (filterCatsIng.size > 0) summaryIng = summaryIng.filter(t => filterCatsIng.has(t.categoriaId));
+  if (filterCatsGast.size > 0) summaryGast = summaryGast.filter(t => filterCatsGast.has(t.categoriaId));
 
   const ingresos = summaryIng.reduce((s, t) => s + t.importe, 0);
   const gastos = summaryGast.reduce((s, t) => s + t.importe, 0);
