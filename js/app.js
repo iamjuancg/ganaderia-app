@@ -1,6 +1,7 @@
-import { openDB } from './db/database.js';
+import { openDB, exportAll, importAll } from './db/database.js';
 import { seedDefaults } from './db/seed.js';
 import { updateExplotacionName } from './utils/appstate.js';
+import { gdriveInit, gdriveAutoSync } from './utils/gdrive.js';
 import { renderDashboard } from './views/dashboard.js';
 import { renderAnimales } from './views/animales.js';
 import { renderEventos } from './views/eventos.js';
@@ -28,6 +29,8 @@ async function init() {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').catch(() => {});
   }
+
+  gdriveInit().then(() => gdriveAutoSync(importAll, exportAll));
 }
 
 function setupSidebarToggle() {

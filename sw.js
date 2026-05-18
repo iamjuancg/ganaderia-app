@@ -1,13 +1,16 @@
-const CACHE_NAME = 'ganaderia-v1';
+const CACHE_NAME = 'ganaderia-v2';
 const STATIC_ASSETS = [
   './',
   './index.html',
   './css/main.css',
   './js/app.js',
+  './js/config.js',
   './js/db/database.js',
   './js/db/seed.js',
+  './js/utils/appstate.js',
   './js/utils/date.js',
   './js/utils/format.js',
+  './js/utils/gdrive.js',
   './js/utils/toast.js',
   './js/utils/modal.js',
   './js/views/dashboard.js',

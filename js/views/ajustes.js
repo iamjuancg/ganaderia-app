@@ -4,6 +4,48 @@ import { formatDate } from '../utils/date.js';
 import { showToast } from '../utils/toast.js';
 import { openModal, confirmModal } from '../utils/modal.js';
 import { updateExplotacionName } from '../utils/appstate.js';
+import {
+  gdriveIsConfigured, gdriveIsAuthenticated, gdriveHasSavedConnection,
+  gdriveGetLastSync, gdriveSignIn, gdriveSignOut,
+  gdriveUpload, gdriveDownload, gdriveInit
+} from '../utils/gdrive.js';
+
+function renderDriveSection() {
+  if (!gdriveIsConfigured()) {
+    return `
+      <div class="settings-section-title">☁️ Google Drive</div>
+      <div class="card">
+        <p class="text-muted text-small">Para activar la sincronización entre dispositivos, edita el archivo <strong>js/config.js</strong> y añade tu Client ID de Google Cloud Console.</p>
+      </div>`;
+  }
+  const connected = gdriveIsAuthenticated();
+  const hasSaved = gdriveHasSavedConnection();
+  const lastSync = gdriveGetLastSync();
+  const lastSyncLabel = lastSync
+    ? `Última sincronización: ${new Date(lastSync).toLocaleString('es-ES')}`
+    : 'Nunca sincronizado';
+
+  return `
+    <div class="settings-section-title">☁️ Google Drive</div>
+    <div class="card">
+      ${connected ? `
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+          <span style="width:10px;height:10px;border-radius:50%;background:var(--color-success);display:inline-block;"></span>
+          <span style="font-weight:500;">Conectado</span>
+        </div>
+        <p class="text-muted text-small" style="margin-bottom:12px;">${lastSyncLabel}</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn btn-primary" id="drive-upload">⬆ Subir a Drive</button>
+          <button class="btn btn-secondary" id="drive-download">⬇ Descargar de Drive</button>
+          <button class="btn btn-secondary" id="drive-disconnect">Desconectar</button>
+        </div>
+      ` : `
+        <p class="text-muted text-small" style="margin-bottom:12px;">Sincroniza tus datos entre ordenador y móvil a través de Google Drive.</p>
+        ${hasSaved ? '<p class="text-muted text-small" style="margin-bottom:12px;color:var(--color-danger)">La sesión expiró. Vuelve a conectar para sincronizar.</p>' : ''}
+        <button class="btn btn-primary" id="drive-connect">🔗 Conectar con Google Drive</button>
+      `}
+    </div>`;
+}
 
 export async function renderAjustes(container) {
   const explotacion = await getSetting('explotacion_nombre') ?? '';
@@ -58,6 +100,11 @@ export async function renderAjustes(container) {
           <input type="file" class="form-control" id="import-json" accept=".json" style="padding:8px;">
         </div>
       </div>
+    </div>
+
+    <!-- Google Drive -->
+    <div class="settings-section" id="drive-section">
+      ${renderDriveSection()}
     </div>
 
     <!-- Zona peligrosa -->
@@ -170,6 +217,66 @@ export async function renderAjustes(container) {
     }, false);
     e.target.value = '';
   });
+
+  // Google Drive
+  const refreshDriveSection = () => {
+    const section = container.querySelector('#drive-section');
+    if (section) section.innerHTML = renderDriveSection();
+    bindDriveListeners();
+  };
+
+  const bindDriveListeners = () => {
+    container.querySelector('#drive-connect')?.addEventListener('click', async () => {
+      try {
+        await gdriveInit();
+        await gdriveSignIn();
+        const data = await exportAll();
+        await gdriveUpload(data);
+        showToast('Conectado y backup subido a Drive');
+        refreshDriveSection();
+      } catch (e) {
+        showToast('Error al conectar con Drive', 'error');
+        console.error(e);
+      }
+    });
+
+    container.querySelector('#drive-upload')?.addEventListener('click', async () => {
+      try {
+        const data = await exportAll();
+        await gdriveUpload(data);
+        showToast('Backup subido a Drive');
+        refreshDriveSection();
+      } catch (e) {
+        showToast('Error al subir a Drive', 'error');
+        console.error(e);
+      }
+    });
+
+    container.querySelector('#drive-download')?.addEventListener('click', async () => {
+      confirmModal('¿Descargar datos desde Drive? Los datos locales se combinarán con los de Drive.', async () => {
+        try {
+          const result = await gdriveDownload();
+          if (!result) { showToast('No hay backup en Drive', 'error'); return; }
+          await importAll(result.data);
+          showToast('Datos descargados e importados desde Drive');
+          refreshDriveSection();
+        } catch (e) {
+          showToast('Error al descargar de Drive', 'error');
+          console.error(e);
+        }
+      });
+    });
+
+    container.querySelector('#drive-disconnect')?.addEventListener('click', () => {
+      confirmModal('¿Desconectar Google Drive? Los datos locales no se borrarán.', () => {
+        gdriveSignOut();
+        showToast('Desconectado de Google Drive');
+        refreshDriveSection();
+      });
+    });
+  };
+
+  bindDriveListeners();
 
   // Borrar todo
   container.querySelector('#btn-delete-all').addEventListener('click', () => {
