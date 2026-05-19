@@ -78,8 +78,8 @@ export async function renderTitularFilter(container, wrapperId, onchange) {
   const isActive = _activeTitularId !== 'all';
 
   wrapper.innerHTML = `
-    <button class="btn btn-secondary fi-dropdown-btn${isActive ? ' fi-dd-active' : ''}">
-      👤 ${escapeHtml(activeName)} <span style="margin-left:4px;font-size:0.7rem;">▼</span>
+    <button class="btn btn-secondary fi-dropdown-btn${isActive ? ' fi-dd-active' : ''}" aria-haspopup="listbox" aria-expanded="false">
+      👤 ${escapeHtml(activeName)} <span style="margin-left:4px;font-size:0.7rem;" aria-hidden="true">▼</span>
     </button>`;
 
   const btn = wrapper.querySelector('button');
@@ -90,16 +90,18 @@ export async function renderTitularFilter(container, wrapperId, onchange) {
       if (!wrapper.contains(p)) p.remove();
     });
     document.querySelectorAll('.fi-dropdown-btn.open').forEach(b => {
-      if (b !== btn) b.classList.remove('open');
+      if (b !== btn) { b.classList.remove('open'); b.setAttribute('aria-expanded', 'false'); }
     });
 
     const existing = wrapper.querySelector('.fi-dropdown-panel');
-    if (existing) { existing.remove(); btn.classList.remove('open'); return; }
+    if (existing) { existing.remove(); btn.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); return; }
 
     btn.classList.add('open');
+    btn.setAttribute('aria-expanded', 'true');
 
     const panel = document.createElement('div');
     panel.className = 'fi-dropdown-panel';
+    panel.setAttribute('role', 'listbox');
 
     const items = [{ id: 'all', nombre: 'Todos' }, ...titulares.map(t => ({ id: t.id, nombre: t.nombre }))];
     panel.innerHTML = items.map(item => `
@@ -113,6 +115,7 @@ export async function renderTitularFilter(container, wrapperId, onchange) {
         setActiveTitularId(radio.value);
         panel.remove();
         btn.classList.remove('open');
+        btn.setAttribute('aria-expanded', 'false');
         await renderTitularFilter(container, wrapperId, onchange);
         if (typeof onchange === 'function') onchange();
       });

@@ -271,6 +271,7 @@ export async function renderTransaccionForm(slot, tipo, tx, onSave) {
     if (!fecha) { showToast('La fecha es obligatoria', 'error'); return; }
     if (!categoriaId) { showToast('Selecciona una categoría', 'error'); return; }
 
+    const now = new Date().toISOString();
     const record = {
       id: tx?.id ?? uid(),
       tipo,
@@ -281,8 +282,8 @@ export async function renderTransaccionForm(slot, tipo, tx, onSave) {
       titularId: slot.querySelector('#tf-titular')?.value || null,
       descripcion: slot.querySelector('#tf-desc').value.trim() || null,
       referencia: slot.querySelector('#tf-ref').value.trim() || null,
-      createdAt: tx?.createdAt ?? new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      createdAt: tx?.createdAt ?? now,
+      updatedAt: now,
     };
     await put('transacciones', record);
     showToast(tx ? 'Transacción actualizada' : `${tipo === 'ingreso' ? 'Ingreso' : 'Gasto'} registrado`);

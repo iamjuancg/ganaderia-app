@@ -392,12 +392,11 @@ async function renderBatchEditForm(slot, events, allAnimales, onSave) {
         }
       : null;
 
-    const importePerAnimal = importe && remaining.length > 0 ? importe / remaining.length : null;
-
+    // Eventos individuales del lote: importe = null (total en la tx agregada).
     const eventoUpdates = remaining.map((ev, i) => ({
       ...ev,
       tipo, fecha: fechaISO, descripcion, peso,
-      importe: importePerAnimal,
+      importe: null,
       contraparte,
       transaccionId: i === 0 && newTransaccion ? newTransaccion.id : null,
       updatedAt: now,
@@ -500,6 +499,8 @@ export async function renderEventoForm(slot, animal, onSave, ev = null) {
     if (!fecha) { showToast('La fecha es obligatoria', 'error'); return; }
 
     const importe = slot.querySelector('#evf-importe')?.value ? Number(slot.querySelector('#evf-importe').value) : null;
+    const now = new Date().toISOString();
+    const fechaISO = new Date(fecha).toISOString();
 
     const allAnimales2 = await getAll('animales');
     const anim = allAnimales2.find(a => a.id === animalId);
@@ -512,14 +513,14 @@ export async function renderEventoForm(slot, animal, onSave, ev = null) {
         id: transaccionId,
         tipo: tipo === 'venta' ? 'ingreso' : 'gasto',
         importe,
-        fecha: new Date(fecha).toISOString(),
+        fecha: fechaISO,
         categoriaId: tipo === 'venta' ? SYS_CAT.VENTA_ANIMALES : SYS_CAT.COMPRA_ANIMALES,
         descripcion: `${tipo === 'venta' ? 'Venta' : 'Compra'}: ${anim?.crotal ?? ''}${anim?.nombre ? ' — ' + anim.nombre : ''}`,
         referencia: null,
         explotacionId: anim?.explotacionId ?? null,
         titularId: anim?.titularId ?? null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: now,
+        updatedAt: now,
       });
     } else if (transaccionId) {
       await remove('transacciones', transaccionId);
@@ -530,24 +531,24 @@ export async function renderEventoForm(slot, animal, onSave, ev = null) {
       id: ev?.id ?? uid(),
       animalId,
       tipo,
-      fecha: new Date(fecha).toISOString(),
+      fecha: fechaISO,
       descripcion: slot.querySelector('#evf-desc').value.trim() || null,
       peso: slot.querySelector('#evf-peso')?.value ? Number(slot.querySelector('#evf-peso').value) : null,
       importe,
       contraparte: slot.querySelector('#evf-contraparte')?.value.trim() || null,
       transaccionId,
       batchId: ev?.batchId ?? null,
-      createdAt: ev?.createdAt ?? new Date().toISOString(),
+      createdAt: ev?.createdAt ?? now,
     };
 
     await put('eventos', record);
 
     if (anim) {
       if (tipo === 'peso' && record.peso) {
-        await put('animales', { ...anim, currentWeight: record.peso, weightDate: record.fecha, updatedAt: new Date().toISOString() });
+        await put('animales', { ...anim, currentWeight: record.peso, weightDate: record.fecha, updatedAt: now });
       } else if (!ev) {
-        if (tipo === 'venta') await put('animales', { ...anim, status: 'vendido', updatedAt: new Date().toISOString() });
-        else if (tipo === 'muerte') await put('animales', { ...anim, status: 'muerto', updatedAt: new Date().toISOString() });
+        if (tipo === 'venta') await put('animales', { ...anim, status: 'vendido', updatedAt: now });
+        else if (tipo === 'muerte') await put('animales', { ...anim, status: 'muerto', updatedAt: now });
       }
     }
 

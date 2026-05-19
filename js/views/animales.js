@@ -402,8 +402,8 @@ async function renderBulkEventoForm(slot, animals, onSave) {
           updatedAt: now,
         }
       : null;
-    const importePerAnimal = importe && animals.length > 0 ? importe / animals.length : null;
-
+    // Eventos de lote: importe individual = null (el total queda en la tx agregada).
+    // Mostrar "12.50€" por animal en su ficha cuando es parte de un lote era engañoso.
     const eventoRecords = animals.map((anim, i) => ({
       id: uid(),
       animalId: anim.id,
@@ -411,7 +411,7 @@ async function renderBulkEventoForm(slot, animals, onSave) {
       fecha: fechaISO,
       descripcion,
       peso,
-      importe: importePerAnimal,
+      importe: null,
       contraparte,
       transaccionId: i === 0 && transaccionRecord ? transaccionRecord.id : null,
       batchId,
@@ -603,13 +603,12 @@ export async function renderAnimalForm(slot, animal, onSave) {
     const items = q ? hembras.filter(h => matchMadre(h, q.toLowerCase().trim())) : hembras;
     if (items.length === 0 && q) { madreListEl.style.display = 'none'; return; }
     madreListEl.style.display = 'block';
+    madreListEl.setAttribute('role', 'listbox');
     madreListEl.innerHTML = [
-      `<div class="madre-opt" data-id="" style="padding:8px 12px;cursor:pointer;font-size:0.88rem;color:var(--color-text-muted);border-bottom:1px solid var(--color-border);">— Sin madre —</div>`,
-      ...items.map(h => `<div class="madre-opt" data-id="${h.id}" style="padding:8px 12px;cursor:pointer;font-size:0.88rem;">${escapeHtml(h.crotal)}${h.nombre ? ' — ' + escapeHtml(h.nombre) : ''}</div>`)
+      `<div class="madre-opt madre-opt-empty" role="option" tabindex="-1" data-id="">— Sin madre —</div>`,
+      ...items.map(h => `<div class="madre-opt" role="option" tabindex="-1" data-id="${h.id}">${escapeHtml(h.crotal)}${h.nombre ? ' — ' + escapeHtml(h.nombre) : ''}</div>`)
     ].join('');
     madreListEl.querySelectorAll('.madre-opt').forEach(el => {
-      el.addEventListener('mouseenter', () => el.style.background = 'var(--color-bg)');
-      el.addEventListener('mouseleave', () => el.style.background = '');
       el.addEventListener('mousedown', e => {
         e.preventDefault();
         madreIdInput.value = el.dataset.id;

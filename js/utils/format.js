@@ -82,13 +82,25 @@ export function downloadFile(content, filename, mimeType) {
   const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = filename;
-  document.body.appendChild(a); a.click();
-  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+  a.href = url;
+  a.download = filename;
+  a.style.display = 'none';
+  // Click directo sin tocar document.body — la mayoría de navegadores lo permiten.
+  // Liberar URL en el next tick para no perder la descarga en Safari.
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+// Genera una fila CSV con escapado de comillas dobles + protección contra
+// CSV formula injection: Excel evalúa celdas que empiezan por =, +, -, @, TAB
+// o CR como fórmulas. Se prefija con apóstrofo para que Excel las trate como
+// texto literal.
 export function csvRow(fields) {
-  return fields.map(f => `"${String(f ?? '').replace(/"/g, '""')}"`).join(',');
+  return fields.map(f => {
+    const s = String(f ?? '');
+    const safe = /^[=+\-@\t\r]/.test(s) ? "'" + s : s;
+    return `"${safe.replace(/"/g, '""')}"`;
+  }).join(',');
 }
 
 // Debounce: agrupa llamadas seguidas dentro de `wait` ms; solo dispara la última.

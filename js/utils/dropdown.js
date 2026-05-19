@@ -8,7 +8,10 @@ export function initDropdownCloser() {
   document.addEventListener('click', e => {
     if (!e.target.closest('.fi-dropdown')) {
       document.querySelectorAll('.fi-dropdown-panel').forEach(p => p.remove());
-      document.querySelectorAll('.fi-dropdown-btn.open').forEach(b => b.classList.remove('open'));
+      document.querySelectorAll('.fi-dropdown-btn.open').forEach(b => {
+        b.classList.remove('open');
+        b.setAttribute('aria-expanded', 'false');
+      });
     }
   });
 }
@@ -22,8 +25,8 @@ export function buildDropdown(container, wrapperId, label, items, selected, onch
   const btnLabel = count > 0 ? `${label} <span class="fi-dd-badge">${count}</span>` : label;
 
   wrapper.innerHTML = `
-    <button class="btn btn-secondary fi-dropdown-btn${count > 0 ? ' fi-dd-active' : ''}">
-      ${btnLabel} <span style="margin-left:4px;font-size:0.7rem;">▼</span>
+    <button class="btn btn-secondary fi-dropdown-btn${count > 0 ? ' fi-dd-active' : ''}" aria-haspopup="listbox" aria-expanded="false">
+      ${btnLabel} <span style="margin-left:4px;font-size:0.7rem;" aria-hidden="true">▼</span>
     </button>`;
 
   const btn = wrapper.querySelector('button');
@@ -33,18 +36,21 @@ export function buildDropdown(container, wrapperId, label, items, selected, onch
       if (!wrapper.contains(p)) p.remove();
     });
     document.querySelectorAll('.fi-dropdown-btn.open').forEach(b => {
-      if (b !== btn) b.classList.remove('open');
+      if (b !== btn) { b.classList.remove('open'); b.setAttribute('aria-expanded', 'false'); }
     });
 
     const existingPanel = wrapper.querySelector('.fi-dropdown-panel');
-    if (existingPanel) { existingPanel.remove(); btn.classList.remove('open'); return; }
+    if (existingPanel) { existingPanel.remove(); btn.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); return; }
 
     btn.classList.add('open');
+    btn.setAttribute('aria-expanded', 'true');
 
     const pending = new Set(selected);
 
     const panel = document.createElement('div');
     panel.className = 'fi-dropdown-panel';
+    panel.setAttribute('role', 'listbox');
+    panel.setAttribute('aria-multiselectable', 'true');
     panel.innerHTML =
       `<div style="padding:6px 8px;border-bottom:1px solid var(--color-border);">
         <input type="text" class="fi-dd-search-input form-control" placeholder="Buscar…" style="height:30px;font-size:0.83rem;" autocomplete="off">
@@ -102,6 +108,7 @@ export function buildDropdown(container, wrapperId, label, items, selected, onch
       pending.forEach(v => selected.add(v));
       panel.remove();
       btn.classList.remove('open');
+      btn.setAttribute('aria-expanded', 'false');
       onchange();
     });
 
