@@ -127,6 +127,7 @@ body {
 /* ── Main content ── */
 .main-content {
   flex: 1;
+  min-width: 0; /* permite que el overflow-x de las tablas funcione dentro del flex */
   margin-left: var(--sidebar-width);
   padding: 24px;
   min-height: 100vh;
