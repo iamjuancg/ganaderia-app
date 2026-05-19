@@ -2,7 +2,7 @@ import { getAll } from '../db/database.js';
 import { formatEur, escapeHtml } from '../utils/format.js';
 import { currentYear, getYear } from '../utils/date.js';
 import { buildDropdown, initDropdownCloser } from '../utils/dropdown.js';
-import { renderTitularFilter } from '../utils/appstate.js';
+import { getActiveTitularId, setActiveTitularId, renderTitularFilter } from '../utils/appstate.js';
 
 let selectedYear = currentYear();
 let filterExplotaciones = new Set();
@@ -43,10 +43,12 @@ export async function renderInformes(container) {
     loadInformes(container);
   });
 
-  container.querySelector('#inf-clear-filters').addEventListener('click', () => {
+  container.querySelector('#inf-clear-filters').addEventListener('click', async () => {
     filterExplotaciones = new Set();
     filterCatsIng = new Set();
     filterCatsGast = new Set();
+    setActiveTitularId('all');
+    await renderTitularFilter(container, 'inf-dropdown-titular', () => loadInformes(container));
     loadInformes(container);
   });
 
@@ -58,8 +60,8 @@ export async function renderInformes(container) {
 
 
 async function loadInformes(container) {
-  const [animales, transacciones, categorias, explotaciones] = await Promise.all([
-    getAll('animales'), getAll('transacciones'), getAll('categorias'), getAll('explotaciones')
+  const [animales, transacciones, categorias, explotaciones, titulares] = await Promise.all([
+    getAll('animales'), getAll('transacciones'), getAll('categorias'), getAll('explotaciones'), getAll('titulares')
   ]);
   const catMap = Object.fromEntries(categorias.map(c => [c.id, c]));
   const catIngresos = categorias.filter(c => c.tipo === 'ingreso');
@@ -73,13 +75,24 @@ async function loadInformes(container) {
   buildDropdown(container, 'inf-dropdown-gast', 'Gastos',
     catGastos, filterCatsGast, () => loadInformes(container));
 
-  // Limpiar button visibility
-  const activeCount = filterExplotaciones.size + filterCatsIng.size + filterCatsGast.size;
+  const activeTitularId = getActiveTitularId();
+  const numTitulares = titulares.length;
+  const titularMatch = (t) => {
+    if (activeTitularId === 'all') return true;
+    return t.titularId === activeTitularId || !t.titularId;
+  };
+  const efectiveImporte = (t) => {
+    if (activeTitularId === 'all' || t.titularId === activeTitularId || numTitulares === 0) return t.importe;
+    return t.importe / numTitulares;
+  };
+
+  // Limpiar button visibility (incluye filtro de titular activo)
+  const activeCount = filterExplotaciones.size + filterCatsIng.size + filterCatsGast.size + (activeTitularId !== 'all' ? 1 : 0);
   const clearBtn = container.querySelector('#inf-clear-filters');
   if (clearBtn) clearBtn.style.display = activeCount > 0 ? '' : 'none';
 
   // --- Aplicar filtros ---
-  let txYear = transacciones.filter(t => getYear(t.fecha) === selectedYear);
+  let txYear = transacciones.filter(t => getYear(t.fecha) === selectedYear && titularMatch(t));
   if (filterExplotaciones.size > 0) txYear = txYear.filter(t => filterExplotaciones.has(t.explotacionId));
 
   let ingresos = txYear.filter(t => t.tipo === 'ingreso');
@@ -87,8 +100,8 @@ async function loadInformes(container) {
   if (filterCatsIng.size > 0) ingresos = ingresos.filter(t => filterCatsIng.has(t.categoriaId));
   if (filterCatsGast.size > 0) gastos = gastos.filter(t => filterCatsGast.has(t.categoriaId));
 
-  const totalIngresos = ingresos.reduce((s, t) => s + t.importe, 0);
-  const totalGastos = gastos.reduce((s, t) => s + t.importe, 0);
+  const totalIngresos = ingresos.reduce((s, t) => s + efectiveImporte(t), 0);
+  const totalGastos = gastos.reduce((s, t) => s + efectiveImporte(t), 0);
   const balance = totalIngresos - totalGastos;
 
   // --- Agrupar por categoría ---
@@ -96,7 +109,7 @@ async function loadInformes(container) {
     const map = {};
     for (const t of txs) {
       const cat = catMap[t.categoriaId]?.nombre || 'Sin categoría';
-      map[cat] = (map[cat] || 0) + t.importe;
+      map[cat] = (map[cat] || 0) + efectiveImporte(t);
     }
     return Object.entries(map).sort((a, b) => b[1] - a[1]);
   };
@@ -106,9 +119,12 @@ async function loadInformes(container) {
 
   // --- Rebaño ---
   const ESTADOS = ['activo', 'vendido', 'muerto'];
-  const especiesSet = [...new Set(animales.map(a => a.especie))].sort();
+  const animalesFiltrados = activeTitularId === 'all'
+    ? animales
+    : animales.filter(a => a.titularId === activeTitularId);
+  const especiesSet = [...new Set(animalesFiltrados.map(a => a.especie))].sort();
   const rebanoData = {};
-  for (const a of animales) {
+  for (const a of animalesFiltrados) {
     if (!rebanoData[a.especie]) rebanoData[a.especie] = { activo: 0, vendido: 0, muerto: 0 };
     rebanoData[a.especie][a.status] = (rebanoData[a.especie][a.status] || 0) + 1;
   }
