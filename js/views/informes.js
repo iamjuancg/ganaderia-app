@@ -2,7 +2,7 @@ import { getAll } from '../db/database.js';
 import { formatEur, escapeHtml } from '../utils/format.js';
 import { currentYear, getYear } from '../utils/date.js';
 import { buildDropdown, initDropdownCloser } from '../utils/dropdown.js';
-import { getActiveTitularId, setActiveTitularId, renderTitularFilter } from '../utils/appstate.js';
+import { getActiveTitularId, setActiveTitularId, renderTitularFilter, titularMatcher } from '../utils/appstate.js';
 
 let selectedYear = currentYear();
 let filterExplotaciones = new Set();
@@ -77,14 +77,7 @@ async function loadInformes(container) {
 
   const activeTitularId = getActiveTitularId();
   const numTitulares = titulares.length;
-  const titularMatch = (t) => {
-    if (activeTitularId === 'all') return true;
-    return t.titularId === activeTitularId || !t.titularId;
-  };
-  const efectiveImporte = (t) => {
-    if (activeTitularId === 'all' || t.titularId === activeTitularId || numTitulares === 0) return t.importe;
-    return t.importe / numTitulares;
-  };
+  const { titularMatch, efectiveImporte } = titularMatcher(activeTitularId, numTitulares);
 
   // Limpiar button visibility (incluye filtro de titular activo)
   const activeCount = filterExplotaciones.size + filterCatsIng.size + filterCatsGast.size + (activeTitularId !== 'all' ? 1 : 0);

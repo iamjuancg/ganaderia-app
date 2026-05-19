@@ -2,7 +2,7 @@ import { getAll } from '../db/database.js';
 import { formatEur, eventoIcon, eventoLabel } from '../utils/format.js';
 import { formatDate, currentYear, getYear, getYearMonth } from '../utils/date.js';
 import { openModal } from '../utils/modal.js';
-import { getActiveTitularId, renderTitularFilter } from '../utils/appstate.js';
+import { getActiveTitularId, renderTitularFilter, titularMatcher } from '../utils/appstate.js';
 import { initDropdownCloser } from '../utils/dropdown.js';
 import { renderAnimalForm } from './animales.js';
 import { renderTransaccionForm } from './finanzas.js';
@@ -30,14 +30,7 @@ export async function renderDashboard(container) {
     especiesCount[a.especie] = (especiesCount[a.especie] || 0) + 1;
   }
 
-  const titularMatch = (t) => {
-    if (activeTitularId === 'all') return true;
-    return t.titularId === activeTitularId || !t.titularId;
-  };
-  const efectiveImporte = (t) => {
-    if (activeTitularId === 'all' || t.titularId === activeTitularId || numTitulares === 0) return t.importe;
-    return t.importe / numTitulares;
-  };
+  const { titularMatch, efectiveImporte } = titularMatcher(activeTitularId, numTitulares);
 
   const txYear = transacciones.filter(t => getYear(t.fecha) === year && titularMatch(t));
   const ingresos = txYear.filter(t => t.tipo === 'ingreso').reduce((s, t) => s + efectiveImporte(t), 0);
@@ -146,14 +139,7 @@ function buildMonthData(transacciones, activeTitularId, numTitulares) {
     d.setMonth(d.getMonth() - i);
     months.push(getYearMonth(d.toISOString()));
   }
-  const titularMatch = (t) => {
-    if (activeTitularId === 'all') return true;
-    return t.titularId === activeTitularId || !t.titularId;
-  };
-  const efectiveImporte = (t) => {
-    if (activeTitularId === 'all' || t.titularId === activeTitularId || numTitulares === 0) return t.importe;
-    return t.importe / numTitulares;
-  };
+  const { titularMatch, efectiveImporte } = titularMatcher(activeTitularId, numTitulares);
   return months.map(ym => {
     const txs = transacciones.filter(t => getYearMonth(t.fecha) === ym && titularMatch(t));
     return {

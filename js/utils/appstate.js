@@ -12,6 +12,23 @@ export function setActiveTitularId(id) {
   sessionStorage.setItem('activeTitularId', _activeTitularId);
 }
 
+// Helpers de filtrado por titular. activeId = id del titular activo o 'all'.
+// numTitulares = total de titulares (para split proporcional de compartidas).
+// titularMatch: true si la tx pertenece al titular activo o es compartida (sin titularId).
+// efectiveImporte: importe a contar; las compartidas se dividen entre numTitulares
+//   cuando se filtra por un titular concreto.
+export function titularMatcher(activeId, numTitulares) {
+  const titularMatch = (t) => {
+    if (activeId === 'all') return true;
+    return t.titularId === activeId || !t.titularId;
+  };
+  const efectiveImporte = (t) => {
+    if (activeId === 'all' || t.titularId === activeId || numTitulares === 0) return t.importe;
+    return t.importe / numTitulares;
+  };
+  return { titularMatch, efectiveImporte };
+}
+
 export async function updateExplotacionName() {
   const name = await getSetting('explotacion_nombre');
   const el = document.getElementById('sidebar-explotacion');

@@ -43,6 +43,91 @@ export async function renderEventos(container) {
   });
 
   initDropdownCloser();
+
+  // Event delegation: una sola vez. Contenido de #eventos-list se reemplaza
+  // en cada loadEventos, pero el elemento contenedor persiste.
+  const list = container.querySelector('#eventos-list');
+
+  list.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const id = btn.dataset.id;
+    const batchId = btn.dataset.batchId;
+
+    switch (btn.dataset.action) {
+      case 'toggle-batch': {
+        const rows = list.querySelectorAll(`.batch-detail-row[data-batch-id="${batchId}"]`);
+        const isOpen = rows[0]?.style.display !== 'none';
+        rows.forEach(r => r.style.display = isOpen ? 'none' : '');
+        btn.textContent = isOpen ? '▶ Ver' : '▼ Ocultar';
+        break;
+      }
+      case 'edit-batch': {
+        const [allEvs, allAnimales] = await Promise.all([getAll('eventos'), getAll('animales')]);
+        const batchEvs = allEvs.filter(ev => ev.batchId === batchId);
+        const { overlay } = openModal({ title: `Editar lote (${batchEvs.length} animales)`, bodyHtml: '<div id="bef-slot"></div>' });
+        renderBatchEditForm(overlay.querySelector('#bef-slot'), batchEvs, allAnimales, () => {
+          overlay.remove();
+          loadEventos(container);
+        });
+        break;
+      }
+      case 'delete-batch': {
+        const allEvs = await getAll('eventos');
+        const batchEvs = allEvs.filter(ev => ev.batchId === batchId);
+        confirmModal(`¿Eliminar el lote completo? Se borrarán ${batchEvs.length} eventos y sus transacciones vinculadas.`, async () => {
+          const allAnimales = await getAll('animales');
+          for (const ev of batchEvs) {
+            await remove('eventos', ev.id);
+            if (ev.transaccionId) await remove('transacciones', ev.transaccionId);
+            if ((ev.tipo === 'venta' || ev.tipo === 'muerte') && ev.animalId) {
+              const anim = allAnimales.find(a => a.id === ev.animalId);
+              const expectedStatus = ev.tipo === 'venta' ? 'vendido' : 'muerto';
+              if (anim && anim.status === expectedStatus) {
+                await put('animales', { ...anim, status: 'activo', updatedAt: new Date().toISOString() });
+              }
+            }
+          }
+          showToast(`Lote de ${batchEvs.length} eventos eliminado`);
+          loadEventos(container);
+        });
+        break;
+      }
+      case 'edit': {
+        const [allEvs, allAnimales] = await Promise.all([getAll('eventos'), getAll('animales')]);
+        const ev = allEvs.find(x => x.id === id);
+        if (!ev) return;
+        const animal = allAnimales.find(a => a.id === ev.animalId);
+        const { overlay } = openModal({ title: 'Editar evento', bodyHtml: '<div id="evf-slot"></div>' });
+        renderEventoForm(overlay.querySelector('#evf-slot'), animal, () => { overlay.remove(); loadEventos(container); }, ev);
+        break;
+      }
+      case 'delete': {
+        const allEvs = await getAll('eventos');
+        const ev = allEvs.find(x => x.id === id);
+        if (!ev) return;
+        const msg = ev.transaccionId
+          ? '¿Eliminar este evento? También se eliminará la transacción de finanzas vinculada.'
+          : '¿Eliminar este evento?';
+        confirmModal(msg, async () => {
+          await remove('eventos', ev.id);
+          if (ev.transaccionId) await remove('transacciones', ev.transaccionId);
+          if ((ev.tipo === 'venta' || ev.tipo === 'muerte') && ev.animalId) {
+            const allAnimales = await getAll('animales');
+            const anim = allAnimales.find(a => a.id === ev.animalId);
+            const expectedStatus = ev.tipo === 'venta' ? 'vendido' : 'muerto';
+            if (anim && anim.status === expectedStatus) {
+              await put('animales', { ...anim, status: 'activo', updatedAt: new Date().toISOString() });
+            }
+          }
+          showToast('Evento eliminado');
+          loadEventos(container);
+        });
+        break;
+      }
+    }
+  });
+
   await loadEventos(container);
 }
 
@@ -172,93 +257,6 @@ async function loadEventos(container) {
     </tbody>
   </table></div>`;
 
-  // Toggle batch rows
-  list.querySelectorAll('[data-action="toggle-batch"]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const batchId = btn.dataset.batchId;
-      const rows = list.querySelectorAll(`.batch-detail-row[data-batch-id="${batchId}"]`);
-      const isOpen = rows[0]?.style.display !== 'none';
-      rows.forEach(r => r.style.display = isOpen ? 'none' : '');
-      btn.textContent = isOpen ? '▶ Ver' : '▼ Ocultar';
-    });
-  });
-
-  // Edit batch
-  list.querySelectorAll('[data-action="edit-batch"]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const batchId = btn.dataset.batchId;
-      const [allEvs, allAnimales] = await Promise.all([getAll('eventos'), getAll('animales')]);
-      const batchEvs = allEvs.filter(e => e.batchId === batchId);
-      const { overlay } = openModal({ title: `Editar lote (${batchEvs.length} animales)`, bodyHtml: '<div id="bef-slot"></div>' });
-      renderBatchEditForm(overlay.querySelector('#bef-slot'), batchEvs, allAnimales, () => {
-        overlay.remove();
-        loadEventos(container);
-      });
-    });
-  });
-
-  // Delete batch
-  list.querySelectorAll('[data-action="delete-batch"]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const batchId = btn.dataset.batchId;
-      const allEvs = await getAll('eventos');
-      const batchEvs = allEvs.filter(e => e.batchId === batchId);
-      confirmModal(`¿Eliminar el lote completo? Se borrarán ${batchEvs.length} eventos y sus transacciones vinculadas.`, async () => {
-        const allAnimales = await getAll('animales');
-        for (const ev of batchEvs) {
-          await remove('eventos', ev.id);
-          if (ev.transaccionId) await remove('transacciones', ev.transaccionId);
-          if ((ev.tipo === 'venta' || ev.tipo === 'muerte') && ev.animalId) {
-            const anim = allAnimales.find(a => a.id === ev.animalId);
-            const expectedStatus = ev.tipo === 'venta' ? 'vendido' : 'muerto';
-            if (anim && anim.status === expectedStatus) {
-              await put('animales', { ...anim, status: 'activo', updatedAt: new Date().toISOString() });
-            }
-          }
-        }
-        showToast(`Lote de ${batchEvs.length} eventos eliminado`);
-        loadEventos(container);
-      });
-    });
-  });
-
-  // Individual edit
-  list.querySelectorAll('[data-action="edit"]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const [allEvs, allAnimales] = await Promise.all([getAll('eventos'), getAll('animales')]);
-      const ev = allEvs.find(e => e.id === btn.dataset.id);
-      if (!ev) return;
-      const animal = allAnimales.find(a => a.id === ev.animalId);
-      const { overlay } = openModal({ title: 'Editar evento', bodyHtml: '<div id="evf-slot"></div>' });
-      renderEventoForm(overlay.querySelector('#evf-slot'), animal, () => { overlay.remove(); loadEventos(container); }, ev);
-    });
-  });
-
-  // Individual delete
-  list.querySelectorAll('[data-action="delete"]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const allEvs = await getAll('eventos');
-      const ev = allEvs.find(e => e.id === btn.dataset.id);
-      if (!ev) return;
-      const msg = ev.transaccionId
-        ? '¿Eliminar este evento? También se eliminará la transacción de finanzas vinculada.'
-        : '¿Eliminar este evento?';
-      confirmModal(msg, async () => {
-        await remove('eventos', ev.id);
-        if (ev.transaccionId) await remove('transacciones', ev.transaccionId);
-        if ((ev.tipo === 'venta' || ev.tipo === 'muerte') && ev.animalId) {
-          const allAnimales = await getAll('animales');
-          const anim = allAnimales.find(a => a.id === ev.animalId);
-          const expectedStatus = ev.tipo === 'venta' ? 'vendido' : 'muerto';
-          if (anim && anim.status === expectedStatus) {
-            await put('animales', { ...anim, status: 'activo', updatedAt: new Date().toISOString() });
-          }
-        }
-        showToast('Evento eliminado');
-        loadEventos(container);
-      });
-    });
-  });
 }
 
 async function renderBatchEditForm(slot, events, allAnimales, onSave) {

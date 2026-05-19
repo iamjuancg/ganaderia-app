@@ -23,6 +23,7 @@ function updateSelectionBar(container) {
 }
 
 export async function renderAnimales(container) {
+  selectedAnimalIds.clear();
   [_explotaciones, _titulares] = await Promise.all([getAll('explotaciones'), getAll('titulares')]);
 
   container.innerHTML = `
@@ -92,6 +93,75 @@ export async function renderAnimales(container) {
     });
   });
 
+  // Event delegation: una sola vez por vista. El contenido de #animales-list
+  // se reemplaza en cada loadAnimales, pero el elemento contenedor persiste.
+  const list = container.querySelector('#animales-list');
+
+  list.addEventListener('change', (e) => {
+    const checkAll = e.target.closest('#check-all');
+    if (checkAll) {
+      list.querySelectorAll('.animal-check').forEach(cb => {
+        cb.checked = checkAll.checked;
+        if (checkAll.checked) selectedAnimalIds.add(cb.dataset.id);
+        else selectedAnimalIds.delete(cb.dataset.id);
+      });
+      updateSelectionBar(container);
+      return;
+    }
+    const cb = e.target.closest('.animal-check');
+    if (cb) {
+      if (cb.checked) selectedAnimalIds.add(cb.dataset.id);
+      else selectedAnimalIds.delete(cb.dataset.id);
+      updateSelectionBar(container);
+      const ca = list.querySelector('#check-all');
+      if (ca) {
+        const cbs = [...list.querySelectorAll('.animal-check')];
+        ca.checked = cbs.every(c => c.checked);
+        ca.indeterminate = !ca.checked && cbs.some(c => c.checked);
+      }
+    }
+  });
+
+  list.addEventListener('click', async (e) => {
+    const th = e.target.closest('th[data-field]');
+    if (th) {
+      const f = th.dataset.field;
+      if (sortField === f) sortDir *= -1; else { sortField = f; sortDir = 1; }
+      loadAnimales(container);
+      return;
+    }
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const id = btn.dataset.id;
+    switch (btn.dataset.action) {
+      case 'detail':
+        openDetalle(id, container);
+        break;
+      case 'edit': {
+        const animales2 = await getAll('animales');
+        const animal = animales2.find(a => a.id === id);
+        const { overlay } = openModal({ title: 'Editar animal', bodyHtml: '<div id="af-slot"></div>' });
+        renderAnimalForm(overlay.querySelector('#af-slot'), animal, () => { overlay.remove(); loadAnimales(container); });
+        break;
+      }
+      case 'delete':
+        confirmModal('¿Eliminar este animal? Esta acción no se puede deshacer.', async () => {
+          await remove('animales', id);
+          selectedAnimalIds.delete(id);
+          showToast('Animal eliminado');
+          loadAnimales(container);
+        });
+        break;
+      case 'evento': {
+        const animales2 = await getAll('animales');
+        const animal = animales2.find(a => a.id === id);
+        const { overlay } = openModal({ title: 'Registrar evento', bodyHtml: '<div id="ev-slot"></div>' });
+        renderEventoForm(overlay.querySelector('#ev-slot'), animal, () => { overlay.remove(); loadAnimales(container); });
+        break;
+      }
+    }
+  });
+
   await loadAnimales(container);
 }
 
@@ -133,6 +203,7 @@ async function loadAnimales(container) {
   }
 
   const explotMap = Object.fromEntries(_explotaciones.map(e => [e.id, e.nombre]));
+  const titularMap = Object.fromEntries(_titulares.map(t => [t.id, t.nombre]));
   const showExplot = _explotaciones.length > 0;
   const showTitular = _titulares.length > 0;
   const allSelected = animales.length > 0 && animales.every(a => selectedAnimalIds.has(a.id));
@@ -140,7 +211,7 @@ async function loadAnimales(container) {
 
   const isMobile = window.innerWidth < 768;
   if (isMobile) {
-    list.innerHTML = `<div class="animal-cards">${animales.map(a => animalCard(a, explotMap, showExplot)).join('')}</div>`;
+    list.innerHTML = `<div class="animal-cards">${animales.map(a => animalCard(a, explotMap, titularMap, showExplot)).join('')}</div>`;
   } else {
     list.innerHTML = `<div class="table-container"><table>
       <thead><tr>
@@ -151,81 +222,19 @@ async function loadAnimales(container) {
         ${showTitular ? '<th>Titular</th>' : ''}
         <th>Acciones</th>
       </tr></thead>
-      <tbody>${animales.map(a => animalRow(a, explotMap, showExplot)).join('')}</tbody>
+      <tbody>${animales.map(a => animalRow(a, explotMap, titularMap, showExplot)).join('')}</tbody>
     </table></div>`;
 
     const checkAll = list.querySelector('#check-all');
-    if (checkAll) {
-      if (someSelected && !allSelected) checkAll.indeterminate = true;
-      checkAll.addEventListener('change', () => {
-        list.querySelectorAll('.animal-check').forEach(cb => {
-          cb.checked = checkAll.checked;
-          if (checkAll.checked) selectedAnimalIds.add(cb.dataset.id);
-          else selectedAnimalIds.delete(cb.dataset.id);
-        });
-        updateSelectionBar(container);
-      });
-    }
-
-    list.querySelectorAll('th[data-field]').forEach(th => {
-      th.addEventListener('click', () => {
-        const f = th.dataset.field;
-        if (sortField === f) sortDir *= -1; else { sortField = f; sortDir = 1; }
-        loadAnimales(container);
-      });
-    });
+    if (checkAll && someSelected && !allSelected) checkAll.indeterminate = true;
   }
 
-  list.querySelectorAll('.animal-check').forEach(cb => {
-    cb.addEventListener('change', () => {
-      if (cb.checked) selectedAnimalIds.add(cb.dataset.id);
-      else selectedAnimalIds.delete(cb.dataset.id);
-      updateSelectionBar(container);
-      const checkAll = list.querySelector('#check-all');
-      if (checkAll) {
-        const cbs = [...list.querySelectorAll('.animal-check')];
-        checkAll.checked = cbs.every(c => c.checked);
-        checkAll.indeterminate = !checkAll.checked && cbs.some(c => c.checked);
-      }
-    });
-  });
-
   updateSelectionBar(container);
-
-  list.querySelectorAll('[data-action="detail"]').forEach(btn => {
-    btn.addEventListener('click', () => openDetalle(btn.dataset.id, container));
-  });
-  list.querySelectorAll('[data-action="edit"]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const animales2 = await getAll('animales');
-      const animal = animales2.find(a => a.id === btn.dataset.id);
-      const { overlay } = openModal({ title: 'Editar animal', bodyHtml: '<div id="af-slot"></div>' });
-      renderAnimalForm(overlay.querySelector('#af-slot'), animal, () => { overlay.remove(); loadAnimales(container); });
-    });
-  });
-  list.querySelectorAll('[data-action="delete"]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      confirmModal('¿Eliminar este animal? Esta acción no se puede deshacer.', async () => {
-        await remove('animales', btn.dataset.id);
-        selectedAnimalIds.delete(btn.dataset.id);
-        showToast('Animal eliminado');
-        loadAnimales(container);
-      });
-    });
-  });
-  list.querySelectorAll('[data-action="evento"]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const animales2 = await getAll('animales');
-      const animal = animales2.find(a => a.id === btn.dataset.id);
-      const { overlay } = openModal({ title: 'Registrar evento', bodyHtml: '<div id="ev-slot"></div>' });
-      renderEventoForm(overlay.querySelector('#ev-slot'), animal, () => { overlay.remove(); loadAnimales(container); });
-    });
-  });
 }
 
-function animalCard(a, explotMap, showExplot) {
+function animalCard(a, explotMap, titularMap, showExplot) {
   const explotNombre = showExplot && a.explotacionId ? explotMap[a.explotacionId] : null;
-  const titularNombre = _titulares.length > 0 ? (_titulares.find(t => t.id === a.titularId)?.nombre ?? null) : null;
+  const titularNombre = a.titularId ? (titularMap[a.titularId] ?? null) : null;
   const checked = selectedAnimalIds.has(a.id) ? 'checked' : '';
   return `<div class="animal-card" style="position:relative;">
     <div style="position:absolute;top:10px;left:10px;z-index:1;">
@@ -257,10 +266,10 @@ function animalCard(a, explotMap, showExplot) {
   </div>`;
 }
 
-function animalRow(a, explotMap, showExplot) {
+function animalRow(a, explotMap, titularMap, showExplot) {
   const explotNombre = showExplot && a.explotacionId ? explotMap[a.explotacionId] : null;
   const showTitular = _titulares.length > 0;
-  const titularNombre = showTitular ? (_titulares.find(t => t.id === a.titularId)?.nombre ?? '—') : null;
+  const titularNombre = showTitular ? (a.titularId ? (titularMap[a.titularId] ?? '—') : '—') : null;
   const checked = selectedAnimalIds.has(a.id) ? 'checked' : '';
   return `<tr>
     <td><input type="checkbox" class="animal-check" data-id="${a.id}" ${checked}></td>

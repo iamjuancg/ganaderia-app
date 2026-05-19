@@ -4,7 +4,7 @@ import { formatDate, todayISO, getYear, currentYear } from '../utils/date.js';
 import { showToast } from '../utils/toast.js';
 import { openModal, confirmModal } from '../utils/modal.js';
 import { buildDropdown, initDropdownCloser } from '../utils/dropdown.js';
-import { getActiveTitularId, renderTitularFilter } from '../utils/appstate.js';
+import { getActiveTitularId, renderTitularFilter, titularMatcher } from '../utils/appstate.js';
 
 let activeTab = 'ingreso', filterYear = currentYear();
 let filterCatsIng = new Set();
@@ -76,6 +76,26 @@ export async function renderFinanzas(container) {
 
   initDropdownCloser();
 
+  // Event delegation: una sola vez. #finanzas-list persiste entre re-renders.
+  const list = container.querySelector('#finanzas-list');
+  list.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const id = btn.dataset.id;
+    if (btn.dataset.action === 'edit') {
+      const all = await getAll('transacciones');
+      const tx = all.find(t => t.id === id);
+      const { overlay } = openModal({ title: `Editar ${tx.tipo}`, bodyHtml: '<div id="tf-slot"></div>' });
+      renderTransaccionForm(overlay.querySelector('#tf-slot'), tx.tipo, tx, () => { overlay.remove(); loadFinanzas(container); });
+    } else if (btn.dataset.action === 'delete') {
+      confirmModal('¿Eliminar esta transacción?', async () => {
+        await remove('transacciones', id);
+        showToast('Transacción eliminada');
+        loadFinanzas(container);
+      });
+    }
+  });
+
   await loadFinanzas(container);
 }
 
@@ -114,16 +134,7 @@ async function loadFinanzas(container) {
 
   container.querySelectorAll('.tab-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === activeTab));
 
-  // Filtro titular: para listas, incluir transacciones del titular + las compartidas (titularId === null)
-  const titularMatch = (t) => {
-    if (activeTitularId === 'all') return true;
-    return t.titularId === activeTitularId || !t.titularId;
-  };
-  // Importe efectivo: para titular específico, las compartidas se dividen entre numTitulares
-  const efectiveImporte = (t) => {
-    if (activeTitularId === 'all' || t.titularId === activeTitularId || numTitulares === 0) return t.importe;
-    return t.importe / numTitulares;
-  };
+  const { titularMatch, efectiveImporte } = titularMatcher(activeTitularId, numTitulares);
 
   // --- Filtrado lista ---
   let filtered = transacciones.filter(t => t.tipo === activeTab && getYear(t.fecha) === filterYear && titularMatch(t));
@@ -176,7 +187,7 @@ async function loadFinanzas(container) {
         <th>Fecha</th><th>Categoría</th>${showExplot ? '<th>Explotación</th>' : ''}${showTitular ? '<th>Titular</th>' : ''}<th>Descripción</th><th>Referencia</th><th style="text-align:right">Importe</th><th>Acciones</th>
       </tr></thead>
       <tbody>${filtered.map(t => {
-        const isShared = activeTitularId !== 'all' && t.titularId === null;
+        const isShared = activeTitularId !== 'all' && !t.titularId;
         const dispImporte = efectiveImporte(t);
         return `<tr${isShared ? ' style="opacity:0.8;"' : ''}>
           <td>${formatDate(t.fecha)}</td>
@@ -195,23 +206,6 @@ async function loadFinanzas(container) {
       </tbody>
     </table></div>`;
 
-  list.querySelectorAll('[data-action="edit"]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const all = await getAll('transacciones');
-      const tx = all.find(t => t.id === btn.dataset.id);
-      const { overlay } = openModal({ title: `Editar ${tx.tipo}`, bodyHtml: '<div id="tf-slot"></div>' });
-      renderTransaccionForm(overlay.querySelector('#tf-slot'), tx.tipo, tx, () => { overlay.remove(); loadFinanzas(container); });
-    });
-  });
-  list.querySelectorAll('[data-action="delete"]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      confirmModal('¿Eliminar esta transacción?', async () => {
-        await remove('transacciones', btn.dataset.id);
-        showToast('Transacción eliminada');
-        loadFinanzas(container);
-      });
-    });
-  });
 }
 
 export async function renderTransaccionForm(slot, tipo, tx, onSave) {
