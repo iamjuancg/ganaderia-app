@@ -1,1 +1,1 @@
-export const APP_VERSION = 'informes-rebano-filter';
+export const APP_VERSION = '64d41a6';
