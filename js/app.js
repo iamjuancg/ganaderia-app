@@ -24,6 +24,7 @@ async function init() {
   await updateExplotacionName();
   setupRouter();
   setupSidebarToggle();
+  setupScrollTop();
   navigate(location.hash.slice(1) || 'dashboard');
 
   if ('serviceWorker' in navigator) {
@@ -61,6 +62,15 @@ function setupSidebarToggle() {
     apply(collapsed);
     localStorage.setItem('sidebar-collapsed', collapsed ? '1' : '0');
   });
+}
+
+function setupScrollTop() {
+  const btn = document.getElementById('scroll-top');
+  if (!btn) return;
+  const onScroll = () => btn.classList.toggle('visible', window.scrollY > 300);
+  window.addEventListener('scroll', onScroll, { passive: true });
+  btn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+  onScroll();
 }
 
 function setupRouter() {

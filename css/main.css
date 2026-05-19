@@ -564,10 +564,44 @@ canvas { display: block; width: 100% !important; }
 .danger-zone { border: 1.5px solid var(--color-danger); border-radius: var(--radius); padding: 20px; }
 .danger-zone .settings-section-title { color: var(--color-danger); border-color: var(--color-danger-light); }
 
+/* ── Scroll-to-top button ── */
+.scroll-top-btn {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(10px);
+  transition: opacity 200ms ease, transform 200ms ease, background 150ms ease;
+  z-index: 150;
+}
+.scroll-top-btn:hover { background: var(--color-primary-dark, var(--color-primary)); }
+.scroll-top-btn.visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+@media (max-width: 767px) {
+  .scroll-top-btn {
+    bottom: calc(var(--bottom-nav-height) + 12px);
+    right: 16px;
+  }
+}
+
 /* ── Informe/print ── */
 @media print {
   .sidebar, .bottom-nav, .page-header .btn, .quick-actions,
-  #toast-container, #modal-container, .no-print { display: none !important; }
+  #toast-container, #modal-container, .scroll-top-btn, .no-print { display: none !important; }
   .main-content { margin: 0; padding: 0; }
   body { background: white; }
   .card, .table-container { box-shadow: none; border: 1px solid #ddd; }
