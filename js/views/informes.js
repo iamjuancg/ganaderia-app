@@ -18,12 +18,12 @@ export async function renderInformes(container) {
   container.innerHTML = `
     <div class="page-header">
       <h1 class="page-title">Informes</h1>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-        <button class="btn btn-secondary no-print" onclick="window.print()">🖨 Imprimir</button>
+      <div class="action-group">
+        <button class="btn btn-secondary no-print" id="inf-print">🖨 Imprimir</button>
       </div>
     </div>
 
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+    <div class="filter-row">
       <select class="form-control" id="inf-year" style="width:120px;">
         ${years.map(y => `<option value="${y}" ${selectedYear === y ? 'selected' : ''}>${y}</option>`).join('')}
       </select>
@@ -37,6 +37,8 @@ export async function renderInformes(container) {
     <div id="inf-content"></div>`;
 
   await renderTitularFilter(container, 'inf-dropdown-titular', () => loadInformes(container));
+
+  container.querySelector('#inf-print').addEventListener('click', () => window.print());
 
   container.querySelector('#inf-year').addEventListener('change', e => {
     selectedYear = Number(e.target.value);

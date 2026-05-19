@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ganaderia-v22';
+const CACHE_NAME = 'ganaderia-v23';
 const STATIC_ASSETS = [
   './',
   './index.html',

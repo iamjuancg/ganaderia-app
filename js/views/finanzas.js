@@ -17,13 +17,13 @@ export async function renderFinanzas(container) {
   container.innerHTML = `
     <div class="page-header">
       <h1 class="page-title">Finanzas</h1>
-      <div style="display:flex;gap:8px;">
+      <div class="action-group">
         <button class="btn btn-primary" id="btn-nuevo-ingreso">+ Ingreso</button>
         <button class="btn btn-secondary" id="btn-nuevo-gasto">+ Gasto</button>
       </div>
     </div>
 
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;" id="fi-filter-bar">
+    <div class="filter-row-tight" id="fi-filter-bar">
       <select class="form-control" id="fi-year" style="width:110px;">
         ${years.map(y => `<option value="${y}" ${filterYear === y ? 'selected' : ''}>${y}</option>`).join('')}
       </select>

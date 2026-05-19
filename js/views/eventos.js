@@ -1,5 +1,5 @@
 import { getAll, put, remove, batch } from '../db/database.js';
-import { uid, TIPOS_EVENTO, eventoIcon, eventoLabel, escapeHtml, formatEur } from '../utils/format.js';
+import { uid, TIPOS_EVENTO, SYS_CAT, eventoIcon, eventoLabel, escapeHtml, formatEur } from '../utils/format.js';
 import { formatDate, todayISO } from '../utils/date.js';
 import { showToast } from '../utils/toast.js';
 import { openModal, confirmModal } from '../utils/modal.js';
@@ -17,7 +17,7 @@ export async function renderEventos(container) {
     <div class="page-header">
       <h1 class="page-title">Eventos del rebaño</h1>
     </div>
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;" id="ev-filter-bar">
+    <div class="filter-row-tight" id="ev-filter-bar">
       <div id="ev-dropdown-tipo" class="fi-dropdown"></div>
       <input type="date" class="form-control" id="ev-filter-desde" value="${filterFechaDesde}" title="Desde" style="width:140px;">
       <input type="date" class="form-control" id="ev-filter-hasta" value="${filterFechaHasta}" title="Hasta" style="width:140px;">
@@ -382,7 +382,7 @@ async function renderBatchEditForm(slot, events, allAnimales, onSave) {
           tipo: tipo === 'venta' ? 'ingreso' : 'gasto',
           importe,
           fecha: fechaISO,
-          categoriaId: tipo === 'venta' ? 'sys-venta-animales' : 'sys-compra-animales',
+          categoriaId: tipo === 'venta' ? SYS_CAT.VENTA_ANIMALES : SYS_CAT.COMPRA_ANIMALES,
           descripcion: `${tipo === 'venta' ? 'Venta' : 'Compra'} lote: ${remaining.length} animales`,
           referencia: null,
           explotacionId: remainingAnimals[0]?.explotacionId ?? null,
@@ -513,7 +513,7 @@ export async function renderEventoForm(slot, animal, onSave, ev = null) {
         tipo: tipo === 'venta' ? 'ingreso' : 'gasto',
         importe,
         fecha: new Date(fecha).toISOString(),
-        categoriaId: tipo === 'venta' ? 'sys-venta-animales' : 'sys-compra-animales',
+        categoriaId: tipo === 'venta' ? SYS_CAT.VENTA_ANIMALES : SYS_CAT.COMPRA_ANIMALES,
         descripcion: `${tipo === 'venta' ? 'Venta' : 'Compra'}: ${anim?.crotal ?? ''}${anim?.nombre ? ' — ' + anim.nombre : ''}`,
         referencia: null,
         explotacionId: anim?.explotacionId ?? null,

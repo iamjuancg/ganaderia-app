@@ -45,20 +45,37 @@ export function eventoLabel(tipo) {
   return TIPOS_EVENTO.find(t => t.value === tipo)?.label ?? tipo;
 }
 
+// IDs de categorías sistema. Usar siempre la constante, nunca el literal.
+export const SYS_CAT = {
+  PAC: 'sys-pac',
+  VENTA_ANIMALES: 'sys-venta-animales',
+  OTROS_INGRESOS: 'sys-otros-ingresos',
+  COMBUSTIBLE: 'sys-combustible',
+  COMPRA_ANIMALES: 'sys-compra-animales',
+  INSTALACIONES: 'sys-instalaciones',
+  MAQUINARIA: 'sys-maquinaria',
+  NOMINAS: 'sys-nominas',
+  OTROS_GASTOS: 'sys-otros-gastos',
+  PIENSO: 'sys-pienso',
+  RENTA_TERRENO: 'sys-renta-terreno',
+  SEGUROS: 'sys-seguros',
+  VET: 'sys-vet',
+};
+
 export const CATEGORIAS_DEFECTO = [
-  { id: 'sys-pac', nombre: 'PAC / Subvenciones', tipo: 'ingreso', sistema: true },
-  { id: 'sys-venta-animales', nombre: 'Venta de animales', tipo: 'ingreso', sistema: true },
-  { id: 'sys-otros-ingresos', nombre: 'Otros ingresos', tipo: 'ingreso', sistema: true },
-  { id: 'sys-combustible', nombre: 'Combustible y transporte', tipo: 'gasto', sistema: true },
-  { id: 'sys-compra-animales', nombre: 'Compra de animales', tipo: 'gasto', sistema: true },
-  { id: 'sys-instalaciones', nombre: 'Instalaciones y terrenos', tipo: 'gasto', sistema: true },
-  { id: 'sys-maquinaria', nombre: 'Maquinaria y mantenimiento', tipo: 'gasto', sistema: true },
-  { id: 'sys-nominas', nombre: 'Nóminas', tipo: 'gasto', sistema: true },
-  { id: 'sys-otros-gastos', nombre: 'Otros gastos', tipo: 'gasto', sistema: true },
-  { id: 'sys-pienso', nombre: 'Pienso y alimentación', tipo: 'gasto', sistema: true },
-  { id: 'sys-renta-terreno', nombre: 'Renta Terreno', tipo: 'gasto', sistema: true },
-  { id: 'sys-seguros', nombre: 'Seguros', tipo: 'gasto', sistema: true },
-  { id: 'sys-vet', nombre: 'Veterinario y medicamentos', tipo: 'gasto', sistema: true },
+  { id: SYS_CAT.PAC, nombre: 'PAC / Subvenciones', tipo: 'ingreso', sistema: true },
+  { id: SYS_CAT.VENTA_ANIMALES, nombre: 'Venta de animales', tipo: 'ingreso', sistema: true },
+  { id: SYS_CAT.OTROS_INGRESOS, nombre: 'Otros ingresos', tipo: 'ingreso', sistema: true },
+  { id: SYS_CAT.COMBUSTIBLE, nombre: 'Combustible y transporte', tipo: 'gasto', sistema: true },
+  { id: SYS_CAT.COMPRA_ANIMALES, nombre: 'Compra de animales', tipo: 'gasto', sistema: true },
+  { id: SYS_CAT.INSTALACIONES, nombre: 'Instalaciones y terrenos', tipo: 'gasto', sistema: true },
+  { id: SYS_CAT.MAQUINARIA, nombre: 'Maquinaria y mantenimiento', tipo: 'gasto', sistema: true },
+  { id: SYS_CAT.NOMINAS, nombre: 'Nóminas', tipo: 'gasto', sistema: true },
+  { id: SYS_CAT.OTROS_GASTOS, nombre: 'Otros gastos', tipo: 'gasto', sistema: true },
+  { id: SYS_CAT.PIENSO, nombre: 'Pienso y alimentación', tipo: 'gasto', sistema: true },
+  { id: SYS_CAT.RENTA_TERRENO, nombre: 'Renta Terreno', tipo: 'gasto', sistema: true },
+  { id: SYS_CAT.SEGUROS, nombre: 'Seguros', tipo: 'gasto', sistema: true },
+  { id: SYS_CAT.VET, nombre: 'Veterinario y medicamentos', tipo: 'gasto', sistema: true },
 ];
 
 export function downloadFile(content, filename, mimeType) {

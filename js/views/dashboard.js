@@ -48,7 +48,7 @@ export async function renderDashboard(container) {
       <h1 class="page-title">Dashboard</h1>
     </div>
 
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+    <div class="filter-row">
       <div id="db-dropdown-titular" class="fi-dropdown"></div>
     </div>
 

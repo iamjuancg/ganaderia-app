@@ -1,5 +1,5 @@
 import { getAll, put, remove, batch } from '../db/database.js';
-import { uid, ESPECIES, TIPOS_EVENTO, escapeHtml, formatEur, eventoLabel, debounce } from '../utils/format.js';
+import { uid, ESPECIES, TIPOS_EVENTO, SYS_CAT, escapeHtml, formatEur, eventoLabel, debounce } from '../utils/format.js';
 import { formatDate, todayISO } from '../utils/date.js';
 import { showToast } from '../utils/toast.js';
 import { openModal, confirmModal } from '../utils/modal.js';
@@ -233,63 +233,85 @@ async function loadAnimales(container) {
   updateSelectionBar(container);
 }
 
+// Datos derivados que comparten animalCard y animalRow. Fuente única
+// de campos formatted/escaped/computados; cualquier cambio de cómo se
+// muestra un animal (nuevo badge, nueva columna…) se hace aquí.
+function animalDisplayData(a, explotMap, titularMap, showExplot) {
+  const showTitular = _titulares.length > 0;
+  return {
+    id: a.id,
+    crotal: escapeHtml(a.crotal),
+    nombre: escapeHtml(a.nombre) || '',
+    nombreOrDash: escapeHtml(a.nombre) || '—',
+    especie: escapeHtml(a.especie),
+    raza: escapeHtml(a.raza) || '',
+    razaOrDash: escapeHtml(a.raza) || '—',
+    sexo: a.sexo,
+    status: a.status,
+    fechaNacimiento: formatDate(a.fechaNacimiento),
+    currentWeight: a.currentWeight,
+    showExplot,
+    showTitular,
+    explotNombre: (showExplot && a.explotacionId) ? escapeHtml(explotMap[a.explotacionId] ?? '') : '',
+    titularNombre: (showTitular && a.titularId) ? escapeHtml(titularMap[a.titularId] ?? '') : '',
+    checked: selectedAnimalIds.has(a.id),
+  };
+}
+
+const ACTION_BUTTONS_CARD = (id) => `
+  <button class="btn btn-sm btn-ghost" data-action="detail" data-id="${id}">Ver ficha</button>
+  <button class="btn btn-sm btn-secondary" data-action="evento" data-id="${id}">+ Evento</button>
+  <button class="btn btn-sm btn-secondary" data-action="edit" data-id="${id}">Editar</button>
+  <button class="btn btn-sm btn-danger" data-action="delete" data-id="${id}">🗑</button>`;
+
+const ACTION_BUTTONS_ROW = (id) => `
+  <button class="btn btn-sm btn-ghost" data-action="detail" data-id="${id}">Ficha</button>
+  <button class="btn btn-sm btn-secondary" data-action="evento" data-id="${id}">+ Evento</button>
+  <button class="btn btn-sm btn-secondary" data-action="edit" data-id="${id}">Editar</button>
+  <button class="btn btn-sm btn-danger" data-action="delete" data-id="${id}">🗑</button>`;
+
 function animalCard(a, explotMap, titularMap, showExplot) {
-  const explotNombre = showExplot && a.explotacionId ? explotMap[a.explotacionId] : null;
-  const titularNombre = a.titularId ? (titularMap[a.titularId] ?? null) : null;
-  const checked = selectedAnimalIds.has(a.id) ? 'checked' : '';
-  return `<div class="animal-card" style="position:relative;">
-    <div style="position:absolute;top:10px;left:10px;z-index:1;">
-      <input type="checkbox" class="animal-check" data-id="${a.id}" ${checked} style="width:16px;height:16px;cursor:pointer;">
+  const d = animalDisplayData(a, explotMap, titularMap, showExplot);
+  return `<div class="animal-card animal-card-pos">
+    <div class="animal-card-check">
+      <input type="checkbox" class="animal-check" data-id="${d.id}" ${d.checked ? 'checked' : ''}>
     </div>
-    <div class="animal-card-header" style="padding-left:28px;">
+    <div class="animal-card-header animal-card-header-pad">
       <div>
-        <div class="animal-card-crotal">${escapeHtml(a.crotal)}</div>
-        ${a.nombre ? `<div class="animal-card-name">${escapeHtml(a.nombre)}</div>` : ''}
+        <div class="animal-card-crotal">${d.crotal}</div>
+        ${d.nombre ? `<div class="animal-card-name">${d.nombre}</div>` : ''}
       </div>
-      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
-        <span class="badge badge-${a.status}">${a.status}</span>
-        ${titularNombre ? `<span class="badge" style="background:var(--color-primary-light);color:#fff;font-size:0.7rem;">👤 ${escapeHtml(titularNombre)}</span>` : ''}
-        ${explotNombre ? `<span class="badge" style="background:var(--color-border);color:var(--color-text-muted);font-size:0.7rem;">${escapeHtml(explotNombre)}</span>` : ''}
+      <div class="animal-card-badges">
+        <span class="badge badge-${d.status}">${d.status}</span>
+        ${d.titularNombre ? `<span class="badge badge-titular">👤 ${d.titularNombre}</span>` : ''}
+        ${d.explotNombre ? `<span class="badge badge-explot">${d.explotNombre}</span>` : ''}
       </div>
     </div>
     <div class="animal-card-row">
-      <div class="animal-card-field"><span>Especie </span>${escapeHtml(a.especie)}</div>
-      ${a.raza ? `<div class="animal-card-field"><span>Raza </span>${escapeHtml(a.raza)}</div>` : ''}
-      <div class="animal-card-field"><span>Sexo </span><span class="badge badge-${a.sexo}">${a.sexo}</span></div>
-      ${a.currentWeight ? `<div class="animal-card-field"><span>Peso </span>${a.currentWeight} kg</div>` : ''}
+      <div class="animal-card-field"><span>Especie </span>${d.especie}</div>
+      ${d.raza ? `<div class="animal-card-field"><span>Raza </span>${d.raza}</div>` : ''}
+      <div class="animal-card-field"><span>Sexo </span><span class="badge badge-${d.sexo}">${d.sexo}</span></div>
+      ${d.currentWeight ? `<div class="animal-card-field"><span>Peso </span>${d.currentWeight} kg</div>` : ''}
     </div>
-    <div class="animal-card-actions">
-      <button class="btn btn-sm btn-ghost" data-action="detail" data-id="${a.id}">Ver ficha</button>
-      <button class="btn btn-sm btn-secondary" data-action="evento" data-id="${a.id}">+ Evento</button>
-      <button class="btn btn-sm btn-secondary" data-action="edit" data-id="${a.id}">Editar</button>
-      <button class="btn btn-sm btn-danger" data-action="delete" data-id="${a.id}">🗑</button>
-    </div>
+    <div class="animal-card-actions">${ACTION_BUTTONS_CARD(d.id)}</div>
   </div>`;
 }
 
 function animalRow(a, explotMap, titularMap, showExplot) {
-  const explotNombre = showExplot && a.explotacionId ? explotMap[a.explotacionId] : null;
-  const showTitular = _titulares.length > 0;
-  const titularNombre = showTitular ? (a.titularId ? (titularMap[a.titularId] ?? '—') : '—') : null;
-  const checked = selectedAnimalIds.has(a.id) ? 'checked' : '';
+  const d = animalDisplayData(a, explotMap, titularMap, showExplot);
   return `<tr>
-    <td><input type="checkbox" class="animal-check" data-id="${a.id}" ${checked}></td>
-    <td><strong>${escapeHtml(a.crotal)}</strong></td>
-    <td>${escapeHtml(a.nombre) || '—'}</td>
-    <td>${escapeHtml(a.especie)}</td>
-    <td>${escapeHtml(a.raza) || '—'}</td>
-    <td><span class="badge badge-${a.sexo}">${a.sexo}</span></td>
-    <td><span class="badge badge-${a.status}">${a.status}</span></td>
-    <td>${formatDate(a.fechaNacimiento)}</td>
-    <td>${a.currentWeight ? a.currentWeight + ' kg' : '—'}</td>
-    ${showExplot ? `<td>${explotNombre ? escapeHtml(explotNombre) : '<span class="text-muted">—</span>'}</td>` : ''}
-    ${showTitular ? `<td>${titularNombre !== '—' ? escapeHtml(titularNombre) : '<span class="text-muted">—</span>'}</td>` : ''}
-    <td class="td-actions">
-      <button class="btn btn-sm btn-ghost" data-action="detail" data-id="${a.id}">Ficha</button>
-      <button class="btn btn-sm btn-secondary" data-action="evento" data-id="${a.id}">+ Evento</button>
-      <button class="btn btn-sm btn-secondary" data-action="edit" data-id="${a.id}">Editar</button>
-      <button class="btn btn-sm btn-danger" data-action="delete" data-id="${a.id}">🗑</button>
-    </td>
+    <td><input type="checkbox" class="animal-check" data-id="${d.id}" ${d.checked ? 'checked' : ''}></td>
+    <td><strong>${d.crotal}</strong></td>
+    <td>${d.nombreOrDash}</td>
+    <td>${d.especie}</td>
+    <td>${d.razaOrDash}</td>
+    <td><span class="badge badge-${d.sexo}">${d.sexo}</span></td>
+    <td><span class="badge badge-${d.status}">${d.status}</span></td>
+    <td>${d.fechaNacimiento}</td>
+    <td>${d.currentWeight ? d.currentWeight + ' kg' : '—'}</td>
+    ${d.showExplot ? `<td>${d.explotNombre || '<span class="text-muted">—</span>'}</td>` : ''}
+    ${d.showTitular ? `<td>${d.titularNombre || '<span class="text-muted">—</span>'}</td>` : ''}
+    <td class="td-actions">${ACTION_BUTTONS_ROW(d.id)}</td>
   </tr>`;
 }
 
@@ -371,7 +393,7 @@ async function renderBulkEventoForm(slot, animals, onSave) {
           tipo: tipo === 'venta' ? 'ingreso' : 'gasto',
           importe,
           fecha: fechaISO,
-          categoriaId: tipo === 'venta' ? 'sys-venta-animales' : 'sys-compra-animales',
+          categoriaId: tipo === 'venta' ? SYS_CAT.VENTA_ANIMALES : SYS_CAT.COMPRA_ANIMALES,
           descripcion: `${tipo === 'venta' ? 'Venta' : 'Compra'} lote: ${animals.length} animales`,
           referencia: null,
           explotacionId: animals[0].explotacionId ?? null,
