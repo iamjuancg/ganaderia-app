@@ -564,6 +564,23 @@ canvas { display: block; width: 100% !important; }
 .danger-zone { border: 1.5px solid var(--color-danger); border-radius: var(--radius); padding: 20px; }
 .danger-zone .settings-section-title { color: var(--color-danger); border-color: var(--color-danger-light); }
 
+/* ── Columna de acciones pegada a la derecha en tablas anchas ── */
+.table-container { position: relative; }
+.td-actions {
+  position: sticky;
+  right: 0;
+  background: var(--color-surface);
+  z-index: 2;
+  box-shadow: -4px 0 6px -3px rgba(0, 0, 0, 0.08);
+}
+.table-container table:has(.td-actions) thead th:last-child {
+  position: sticky;
+  right: 0;
+  background: var(--color-surface);
+  z-index: 3;
+  box-shadow: -4px 0 6px -3px rgba(0, 0, 0, 0.08);
+}
+
 /* ── Scroll-to-top button ── */
 .scroll-top-btn {
   position: fixed;
