@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manual de uso — GanaderíaApp</title>
+  <style>
+    :root {
+      --primary: #2d6a4f;
+      --primary-light: #40916c;
+      --bg: #f7faf8;
+      --surface: #ffffff;
+      --border: #d8e2dc;
+      --text: #1b2b22;
+      --muted: #5b6b62;
+      --warn-bg: #fff8e1;
+      --warn-border: #f0c674;
+      --info-bg: #e8f0ec;
+      --info-border: #95d5b2;
+      --danger-bg: #ffe9e9;
+      --danger-border: #e63946;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      margin: 0;
+      line-height: 1.65;
+    }
+    .layout { max-width: 1100px; margin: 0 auto; padding: 24px; display: grid; grid-template-columns: 240px 1fr; gap: 32px; }
+    @media (max-width: 880px) { .layout { grid-template-columns: 1fr; padding: 16px; gap: 16px; } nav.toc { position: static !important; max-height: none !important; } }
+
+    nav.toc {
+      position: sticky;
+      top: 24px;
+      align-self: start;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      max-height: calc(100vh - 48px);
+      overflow-y: auto;
+      font-size: 0.92rem;
+    }
+    nav.toc h3 { margin: 0 0 8px; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); }
+    nav.toc ul { list-style: none; padding: 0; margin: 0 0 12px; }
+    nav.toc li { margin: 2px 0; }
+    nav.toc a { color: var(--text); text-decoration: none; display: block; padding: 4px 6px; border-radius: 6px; }
+    nav.toc a:hover { background: var(--info-bg); color: var(--primary); }
+    nav.toc ul ul { padding-left: 12px; font-size: 0.88rem; }
+
+    article {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 32px 36px;
+    }
+    article h1 { color: var(--primary); margin-top: 0; font-size: 2rem; border-bottom: 3px solid var(--primary-light); padding-bottom: 12px; }
+    article h2 { color: var(--primary); margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--border); font-size: 1.5rem; }
+    article h3 { color: var(--primary); margin-top: 28px; font-size: 1.2rem; }
+    article h4 { color: var(--text); margin-top: 20px; font-size: 1.02rem; }
+    article p { margin: 10px 0; }
+    article ol, article ul { padding-left: 22px; }
+    article li { margin: 4px 0; }
+
+    .lead {
+      font-size: 1.08rem;
+      color: var(--muted);
+      background: var(--info-bg);
+      border-left: 4px solid var(--primary-light);
+      padding: 14px 18px;
+      border-radius: 0 8px 8px 0;
+      margin: 16px 0 24px;
+    }
+
+    .callout {
+      border-left: 4px solid;
+      padding: 12px 16px;
+      border-radius: 0 8px 8px 0;
+      margin: 16px 0;
+    }
+    .callout.tip { background: var(--info-bg); border-color: var(--primary-light); }
+    .callout.warn { background: var(--warn-bg); border-color: var(--warn-border); }
+    .callout.danger { background: var(--danger-bg); border-color: var(--danger-border); }
+    .callout strong { display: block; margin-bottom: 4px; }
+
+    figure {
+      margin: 18px 0;
+      padding: 14px;
+      background: var(--bg);
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+      text-align: center;
+    }
+    figure img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: #fff;
+    }
+    figure figcaption {
+      font-size: 0.88rem;
+      color: var(--muted);
+      margin-top: 8px;
+      font-style: italic;
+    }
+    .img-placeholder {
+      display: block;
+      width: 100%;
+      min-height: 180px;
+      background: repeating-linear-gradient(45deg, #eef3f0, #eef3f0 10px, #f7faf8 10px, #f7faf8 20px);
+      border-radius: 6px;
+      border: 1px dashed #b8c8c0;
+      color: #6b7c74;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      padding: 12px;
+    }
+
+    table.steps {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0;
+    }
+    table.steps th, table.steps td {
+      text-align: left;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    table.steps th { background: var(--info-bg); color: var(--primary); font-weight: 600; }
+    table.steps td:first-child { width: 50px; font-weight: 700; color: var(--primary); }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      background: var(--info-bg);
+      color: var(--primary);
+      margin: 0 2px;
+    }
+    .kbd {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 4px;
+      background: #f0f3f1;
+      border: 1px solid var(--border);
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      font-size: 0.88rem;
+    }
+    .field { font-weight: 600; color: var(--primary); }
+    .btn-ref {
+      display: inline-block;
+      padding: 2px 8px;
+      background: var(--primary);
+      color: #fff;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    details.faq {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin: 10px 0;
+      padding: 0;
+    }
+    details.faq summary {
+      padding: 12px 16px;
+      cursor: pointer;
+      font-weight: 600;
+      color: var(--primary);
+    }
+    details.faq[open] summary { border-bottom: 1px solid var(--border); }
+    details.faq > p, details.faq > ul, details.faq > ol { padding: 0 16px 12px; margin: 12px 0 0; }
+
+    .toc-back {
+      display: inline-block;
+      margin-top: 8px;
+      font-size: 0.85rem;
+      color: var(--muted);
+      text-decoration: none;
+    }
+    .toc-back:hover { color: var(--primary); }
+
+    .section-divider {
+      margin: 48px 0 0;
+      padding: 24px 28px;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+      color: #fff;
+      border-radius: 12px;
+    }
+    .section-divider h2 { color: #fff; border: none; margin: 0; padding: 0; }
+    .section-divider p { margin: 6px 0 0; opacity: 0.95; }
+
+    @media print {
+      body { background: #fff; }
+      nav.toc { display: none; }
+      .layout { grid-template-columns: 1fr; padding: 0; }
+      article { border: none; padding: 0; }
+      a { color: var(--text); text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+
+<nav class="toc">
+  <h3>Guía rápida</h3>
+  <ul>
+    <li><a href="#qe-es">¿Qué es GanaderíaApp?</a></li>
+    <li><a href="#instalar">Instalar en el móvil</a></li>
+    <li><a href="#primer-uso">Primer uso (5 min)</a></li>
+    <li><a href="#tareas-comunes">5 tareas más frecuentes</a></li>
+  </ul>
+  <h3>Manual completo</h3>
+  <ul>
+    <li><a href="#interfaz">La pantalla principal</a></li>
+    <li><a href="#dashboard">Dashboard</a></li>
+    <li><a href="#animales">Animales</a></li>
+    <li><a href="#eventos">Eventos</a></li>
+    <li><a href="#finanzas">Finanzas</a></li>
+    <li><a href="#informes">Informes</a></li>
+    <li><a href="#ajustes">Ajustes</a>
+      <ul>
+        <li><a href="#titulares">Titulares</a></li>
+        <li><a href="#explotaciones">Explotaciones</a></li>
+        <li><a href="#categorias">Categorías</a></li>
+        <li><a href="#empleados">Empleados</a></li>
+        <li><a href="#copia-seguridad">Copia de seguridad</a></li>
+        <li><a href="#drive">Google Drive</a></li>
+      </ul>
+    </li>
+  </ul>
+  <h3>Ayuda</h3>
+  <ul>
+    <li><a href="#faq">Preguntas frecuentes</a></li>
+    <li><a href="#glosario">Glosario</a></li>
+  </ul>
+</nav>
+
+<article>
+
+<h1>Manual de uso — GanaderíaApp</h1>
+<p class="lead">
+  Esta guía explica, paso a paso y sin tecnicismos, cómo usar la aplicación para llevar el control
+  de tu ganadería: animales, partos, ventas, gastos, empleados y resultados anuales. Empieza por la
+  <a href="#qe-es">guía rápida</a> si nunca has abierto la app; cuando ya manejes lo básico, salta al
+  <a href="#interfaz">manual completo</a>.
+</p>
+
+
+<!-- ====================================================== -->
+<!-- GUÍA RÁPIDA                                            -->
+<!-- ====================================================== -->
+
+<div class="section-divider">
+  <h2>Guía rápida</h2>
+  <p>Lo mínimo que necesitas saber para empezar a usar la app en 5 minutos.</p>
+</div>
+
+
+<h2 id="qe-es">¿Qué es GanaderíaApp?</h2>
+
+<p>
+  Es una aplicación para llevar la <strong>contabilidad y el inventario de una ganadería</strong>:
+  saber cuántos animales tienes, qué les ha pasado (partos, pesajes, ventas, muertes), cuánto dinero
+  entra y sale, y qué resultado da el año. Funciona en el ordenador y en el móvil, y los datos se
+  guardan en tu propio dispositivo (no en una nube de terceros, salvo que lo conectes tú con Google
+  Drive).
+</p>
+
+<figure>
+  <img src="docs/img/dashboard-overview.png" alt="Pantalla principal de la app" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+  <span class="img-placeholder" style="display:none">[ Captura general: pantalla del Dashboard con varios animales ya cargados ]</span>
+  <figcaption>El Dashboard es la primera pantalla: resumen del rebaño, balance del año, gráfico de los últimos 6 meses y eventos recientes.</figcaption>
+</figure>
+
+<h3>Qué puede hacer por ti</h3>
+<ul>
+  <li><strong>Llevar el registro del rebaño</strong>: cada animal con su crotal, especie, raza, sexo, peso, madre y explotación.</li>
+  <li><strong>Anotar lo que pasa en el día a día</strong>: partos, pesajes, ventas, muertes, tratamientos…</li>
+  <li><strong>Controlar el dinero</strong>: ingresos por ventas, gastos de pienso, veterinario, combustible, etc.</li>
+  <li><strong>Sacar informes</strong>: cuenta de resultados del año, gastos por categoría e inventario del rebaño, listos para imprimir.</li>
+  <li><strong>Compartir entre varios titulares</strong>: si la explotación está a nombre de varias personas, la app reparte los gastos comunes proporcionalmente y cada uno tiene su propio balance.</li>
+  <li><strong>Copia de seguridad y sincronización</strong>: exportas tus datos a un fichero, o los sincronizas entre el móvil y el ordenador con Google Drive.</li>
+</ul>
+
+
+<h2 id="instalar">Instalar la app en el móvil</h2>
+
+<p>
+  Aunque se usa desde el navegador, se puede instalar como si fuera una app normal y abrirla desde un
+  icono en la pantalla de inicio. Así funciona también sin conexión.
+</p>
+
+<h4>En Android (Chrome)</h4>
+<ol>
+  <li>Abre la web de la app en Chrome.</li>
+  <li>Toca el botón de menú (los tres puntos arriba a la derecha).</li>
+  <li>Elige <strong>“Añadir a pantalla de inicio”</strong> o <strong>“Instalar app”</strong>.</li>
+  <li>Confirma. Aparece un icono nuevo (🐄) en el escritorio del móvil.</li>
+</ol>
+
+<h4>En iPhone (Safari)</h4>
+<ol>
+  <li>Abre la web en Safari.</li>
+  <li>Toca el botón <strong>Compartir</strong> (cuadrado con flecha hacia arriba).</li>
+  <li>Baja y elige <strong>“Añadir a pantalla de inicio”</strong>.</li>
+  <li>Confirma. El icono aparece junto a tus otras apps.</li>
+</ol>
+
+<figure>
+  <img src="docs/img/install-mobile.png" alt="Instalar la app en el móvil" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+  <span class="img-placeholder" style="display:none">[ Captura del menú del navegador móvil con la opción "Añadir a pantalla de inicio" resaltada ]</span>
+  <figcaption>El proceso de instalación es el mismo que para cualquier otra app web.</figcaption>
+</figure>
+
+<div class="callout tip">
+  <strong>💡 Truco</strong>
+  Una vez instalada, la app funciona <em>sin conexión a internet</em>. Puedes consultar el rebaño y
+  añadir eventos en el campo, aunque no haya cobertura.
+</div>
+
+
+<h2 id="primer-uso">Primer uso (5 minutos)</h2>
+
+<p>Estos son los pasos recomendados la primera vez que abres la app, en orden:</p>
+
+<table class="steps">
+  <thead><tr><th>Paso</th><th>Qué hacer</th><th>Dónde</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Pon el nombre de tu explotación principal</td><td>Ajustes → <span class="field">Mi explotación</span></td></tr>
+    <tr><td>2</td><td>Si la explotación es compartida, añade los titulares</td><td>Ajustes → <span class="field">Titulares</span></td></tr>
+    <tr><td>3</td><td>Si tienes varias parcelas/fincas, añádelas como “explotaciones”</td><td>Ajustes → <span class="field">Explotaciones</span></td></tr>
+    <tr><td>4</td><td>Revisa o crea las categorías de ingreso y gasto</td><td>Ajustes → <span class="field">Categorías</span></td></tr>
+    <tr><td>5</td><td>Da de alta tus primeros animales</td><td>Animales → <span class="btn-ref">+ Nuevo animal</span></td></tr>
+    <tr><td>6</td><td>(Opcional) Conecta Google Drive para sincronizar con el móvil</td><td>Ajustes → <span class="field">Google Drive</span></td></tr>
+  </tbody>
+</table>
+
+<p>Y ya está. A partir de aquí solo tienes que ir anotando lo que pasa cada día.</p>
+
+
+<h2 id="tareas-comunes">Las 5 tareas más frecuentes</h2>
+
+<h3>1. Dar de alta un animal nuevo</h3>
+<ol>
+  <li>Pulsa en <strong>Animales</strong> en el menú lateral o inferior.</li>
+  <li>Pulsa <span class="btn-ref">+ Nuevo animal</span> arriba a la derecha.</li>
+  <li>Rellena al menos: <span class="field">Crotal</span>, <span class="field">Especie</span> y <span class="field">Sexo</span>.</li>
+  <li>Pulsa <strong>Guardar</strong>.</li>
+</ol>
+
+<h3>2. Anotar un evento (parto, pesaje, venta, muerte…)</h3>
+<ol>
+  <li>En <strong>Animales</strong>, busca al animal por crotal.</li>
+  <li>Pulsa <span class="btn-ref">+ Evento</span> en su fila.</li>
+  <li>Elige el tipo (parto, peso, venta, compra, muerte, sanidad, otro), pon la fecha y los datos que pida (peso, importe, etc.).</li>
+  <li><strong>Guardar</strong>. Si el evento implica dinero (venta o compra), se crea automáticamente un ingreso o gasto en Finanzas.</li>
+</ol>
+
+<h3>3. Vender un lote de varios animales a la vez</h3>
+<ol>
+  <li>En <strong>Animales</strong>, marca con la casilla los animales del lote.</li>
+  <li>Abajo aparece una barra verde con el número de seleccionados. Pulsa <span class="btn-ref">Aplicar evento</span>.</li>
+  <li>Elige tipo <strong>Venta</strong>, pon la fecha y el <span class="field">importe total del lote</span> (no por animal).</li>
+  <li><strong>Aplicar</strong>. Los animales pasan a “vendido” y se anota un único ingreso por el total.</li>
+</ol>
+
+<h3>4. Apuntar un gasto (pienso, veterinario, combustible…)</h3>
+<ol>
+  <li>Ve a <strong>Finanzas</strong> en el menú.</li>
+  <li>Pulsa <span class="btn-ref">+ Gasto</span> arriba a la derecha.</li>
+  <li>Pon el importe, la fecha y elige una categoría (Pienso, Veterinario, etc.).</li>
+  <li>Si el gasto es solo de un titular, márcalo. Si no, déjalo en “común” y la app lo repartirá entre todos.</li>
+  <li><strong>Guardar</strong>.</li>
+</ol>
+
+<h3>5. Ver cómo va el año</h3>
+<ol>
+  <li>Pulsa <strong>Informes</strong> en el menú.</li>
+  <li>Elige el año arriba a la izquierda.</li>
+  <li>Verás: total ingresos, total gastos, balance, desglose por categorías e inventario del rebaño.</li>
+  <li>Pulsa <span class="btn-ref">🖨 Imprimir</span> si quieres una copia en papel o en PDF.</li>
+</ol>
+
+
+<!-- ====================================================== -->
+<!-- MANUAL COMPLETO                                        -->
+<!-- ====================================================== -->
+
+<div class="section-divider">
+  <h2>Manual completo</h2>
+  <p>Explicación detallada de cada módulo, con todos los campos, opciones y casos especiales.</p>
+</div>
+
+
+<h2 id="interfaz">La pantalla principal</h2>
+
+<p>La app está organizada en seis módulos a los que se accede siempre desde el mismo menú:</p>
+
+<figure>
+  <img src="docs/img/interfaz-menus.png" alt="Menús de navegación de la app" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+  <span class="img-placeholder" style="display:none">[ Captura: pantalla de la app señalando con flechas el menú lateral en escritorio y el menú inferior en móvil ]</span>
+  <figcaption>En ordenador, el menú está a la izquierda. En móvil, abajo del todo.</figcaption>
+</figure>
+
+<table class="steps">
+  <thead><tr><th>Icono</th><th>Módulo</th><th>Para qué</th></tr></thead>
+  <tbody>
+    <tr><td>📊</td><td><strong>Dashboard</strong></td><td>Vista general: rebaño, balance del año y eventos recientes.</td></tr>
+    <tr><td>🐄</td><td><strong>Animales</strong></td><td>Ficha de cada animal, altas, bajas y selección por lotes.</td></tr>
+    <tr><td>📋</td><td><strong>Eventos</strong></td><td>Listado y filtrado de todo lo que ha pasado en el rebaño.</td></tr>
+    <tr><td>💰</td><td><strong>Finanzas</strong></td><td>Ingresos y gastos detallados con sus categorías.</td></tr>
+    <tr><td>📈</td><td><strong>Informes</strong></td><td>Cuenta de resultados e inventario, listos para imprimir.</td></tr>
+    <tr><td>⚙️</td><td><strong>Ajustes</strong></td><td>Configuración: titulares, explotaciones, categorías, copia de seguridad…</td></tr>
+  </tbody>
+</table>
+
+<h3>El filtro de titular</h3>
+
+<p>
+  En el Dashboard, Animales, Eventos, Finanzas e Informes hay un desplegable arriba con el nombre del
+  titular activo. Sirve para <strong>ver los datos como si la explotación fuera solo de esa persona</strong>:
+  sus animales, sus ingresos, sus gastos (más la parte proporcional de los gastos comunes).
+</p>
+
+<figure>
+  <img src="docs/img/filtro-titular.png" alt="Filtro de titular" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+  <span class="img-placeholder" style="display:none">[ Captura: el desplegable de titular abierto mostrando "Todos los titulares" + lista de titulares ]</span>
+  <figcaption>El filtro de titular cambia toda la pantalla: animales, balance y gráficos solo muestran lo que toca a ese titular.</figcaption>
+</figure>
+
+<div class="callout tip">
+  <strong>💡 Si tu explotación es de una sola persona</strong>
+  No hace falta crear titulares. La app funciona perfectamente sin ellos y el filtro ni siquiera
+  aparece.
+</div>
+
+
+<!-- ===== DASHBOARD ===== -->
+
+<h2 id="dashboard">📊 Dashboard</h2>
+
+<p>Es la pantalla de inicio. De un vistazo te dice cómo va la explotación.</p>
+
+<figure>
+  <img src="docs/img/dashboard-detalle.png" alt="Dashboard con sus tres bloques principales" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+  <span class="img-placeholder" style="display:none">[ Captura del Dashboard mostrando: los 3 botones de acción rápida, los KPIs por especie, el balance, el gráfico y los últimos eventos ]</span>
+  <figcaption>El Dashboard se divide en cinco bloques: acciones rápidas, rebaño activo, balance del año, gráfico de 6 meses y últimos eventos.</figcaption>
+</figure>
+
+<h3>Acciones rápidas</h3>
+<p>Tres botones grandes en lo alto:</p>
+<ul>
+  <li><span class="btn-ref">+ Nuevo animal</span> — abre el formulario para dar de alta un animal sin tener que ir a Animales.</li>
+  <li><span class="btn-ref">💶 Registrar venta</span> — apunta un ingreso directamente.</li>
+  <li><span class="btn-ref">💸 Registrar gasto</span> — apunta un gasto.</li>
+</ul>
+
+<h3>Rebaño activo</h3>
+<p>Tarjetas con el número de cabezas activas por especie (vacuno, ovino, caprino, etc.). Si filtras por titular, solo cuenta los suyos.</p>
+
+<h3>Balance del año</h3>
+<p>Tres números grandes:</p>
+<ul>
+  <li><strong>Ingresos</strong> (en verde) — total facturado este año.</li>
+  <li><strong>Gastos</strong> (en rojo) — total gastado este año.</li>
+  <li><strong>Balance</strong> — diferencia: si está en verde es beneficio, en rojo es pérdida.</li>
+</ul>
+
+<h3>Gráfico de 6 meses</h3>
+<p>
+  Dos barras por mes (verde = ingresos, roja = gastos) de los últimos 6 meses. Sirve para detectar
+  rachas y temporadas: por ejemplo, gastos altos en primavera por la siembra, ingresos altos en otoño
+  por ventas de terneros.
+</p>
+
+<h3>Últimos eventos</h3>
+<p>Los 5 últimos hechos anotados en el rebaño, con su fecha y el animal al que afectan.</p>
+
+
+<!-- ===== ANIMALES ===== -->
+
+<h2 id="animales">🐄 Animales</h2>
+
+<p>El corazón de la app. Aquí está la ficha de cada animal del rebaño.</p>
+
+<figure>
+  <img src="docs/img/animales-listado.png" alt="Listado de animales" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+  <span class="img-placeholder" style="display:none">[ Captura: pantalla de animales con la tabla en escritorio (o las tarjetas en móvil), el buscador, los filtros y el botón "+ Nuevo animal" ]</span>
+  <figcaption>En ordenador se muestra como tabla; en el móvil, como tarjetas individuales. La información es la misma.</figcaption>
+</figure>
+
+<h3>Buscar y filtrar</h3>
+
+<p>Arriba del listado tienes:</p>
+<ul>
+  <li><strong>Buscador</strong>: escribe el crotal, el nombre o las últimas cifras del crotal. Por ejemplo, “1234” encuentra <code>ES0801001234</code>.</li>
+  <li><strong>Filtro de especie</strong>: vacuno, ovino, caprino, etc.</li>
+  <li><strong>Filtro de estado</strong>: por defecto muestra solo <strong>Activos</strong>. Puedes elegir <em>Todos</em>, <em>Vendidos</em> o <em>Muertos</em>.</li>
+  <li><strong>Filtro de explotación</strong> (si tienes más de una).</li>
+  <li><strong>Filtro de titular</strong>.</li>
+</ul>
+
+<div class="callout tip">
+  <strong>💡 Ordenar columnas</strong>
+  En escritorio puedes pulsar las cabeceras de la tabla (Crotal, Nombre, Especie…) para ordenar de
+  forma ascendente o descendente.
+</div>
+
+<h3>Dar de alta un animal</h3>
+
+<p>Pulsa <span class="btn-ref">+ Nuevo animal</span>. Estos son los campos:</p>
+
+<table class="steps">
+  <thead><tr><th>Campo</th><th>Obligatorio</th><th>Notas</th></tr></thead>
+  <tbody>
+    <tr><td><span class="field">Crotal</span></td><td>Sí</td><td>Identificador único del animal.</td></tr>
+    <tr><td><span class="field">Nombre</span></td><td>No</td><td>Apodo opcional (“La Pinta”, “Lola”…).</td></tr>
+    <tr><td><span class="field">Especie</span></td><td>Sí</td><td>Vacuno, ovino, caprino, etc.</td></tr>
+    <tr><td><span class="field">Raza</span></td><td>No</td><td>Limusina, Avileña, Merina…</td></tr>
+    <tr><td><span class="field">Sexo</span></td><td>Sí</td><td>Macho o hembra.</td></tr>
+    <tr><td><span class="field">Estado</span></td><td>—</td><td>Por defecto “Activo”. Solo se cambia a mano si pones un animal heredado ya vendido.</td></tr>
+    <tr><td><span class="field">Fecha de nacimiento</span></td><td>No</td><td>Si la sabes, mejor. La app calcula la edad sola.</td></tr>
+    <tr><td><span class="field">Madre</span></td><td>No</td><td>Empieza a escribir el crotal o el nombre y aparecen las hembras candidatas. Útil para llevar líneas familiares.</td></tr>
+    <tr><td><span class="field">Origen</span></td><td>No</td><td>Nacimiento (nacido en la explotación) o Compra.</td></tr>
+    <tr><td><span class="field">Explotación</span></td><td>No</td><td>Si tienes varias fincas, asigna a cuál pertenece.</td></tr>
+    <tr><td><span class="field">Titular</span></td><td>No</td><td>Si la explotación es compartida.</td></tr>
+    <tr><td><span class="field">Notas</span></td><td>No</td><td>Cualquier observación libre.</td></tr>
+  </tbody>
+</table>
+
+<h3>Ver la ficha de un animal</h3>
+
+<p>
+  Pulsa <span class="btn-ref">Ficha</span> (o <span class="btn-ref">Ver ficha</span> en móvil). Se
+  abre una ventana con todos sus datos y, debajo, el <strong>historial de eventos</strong>: una línea
+  cronológica con todo lo que se le ha anotado (partos, pesajes, tratamientos, etc.).
+</p>
+
+<figure>
+  <img src="docs/img/animal-ficha.png" alt="Ficha de un animal" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+  <span class="img-placeholder" style="display:none">[ Captura: ficha de un animal abierta, con sus datos arriba y la línea de tiempo de eventos debajo ]</span>
+  <figcaption>La ficha incluye un historial completo: cada evento aparece como una entrada en la línea de tiempo.</figcaption>
+</figure>
+
+<h3>Registrar un evento</h3>
+
+<p>
+  Pulsa <span class="btn-ref">+ Evento</span> en la fila del animal. Tipos de evento disponibles:
+</p>
+
+<ul>
+  <li><strong>🍼 Parto</strong> — nacimiento de una cría.</li>
+  <li><strong>⚖ Peso</strong> — pesaje. Se actualiza el peso actual del animal.</li>
+  <li><strong>💶 Venta</strong> — venta. Cambia el estado a “vendido” y crea un ingreso en Finanzas.</li>
+  <li><strong>🛒 Compra</strong> — compra. Crea un gasto en Finanzas.</li>
+  <li><strong>💀 Muerte</strong> — baja por muerte. Cambia el estado a “muerto”.</li>
+  <li><strong>💉 Sanidad</strong> — vacunación, tratamiento, visita del veterinario…</li>
+  <li><strong>📝 Otro</strong> — para cualquier cosa que no encaje en las anteriores.</li>
+</ul>
+
+<h3>Operaciones por lotes (varios animales a la vez)</h3>
+
+<p>
+  Si tienes que vender un lote, pesar todo un rebaño o aplicar un tratamiento sanitario al grupo, no
+  hace falta repetir el proceso animal por animal:
+</p>
+
+<ol>
+  <li>Marca las casillas de los animales del lote (o pulsa la casilla de la cabecera para marcarlos todos).</li>
+  <li>Abajo del listado aparece una <strong>barra verde</strong> con el número de seleccionados.</li>
+  <li>Pulsa <span class="btn-ref">Aplicar evento</span>.</li>
+  <li>Elige el tipo y los datos. Para ventas/compras, el importe es el <strong>total del lote</strong>, no por animal.</li>
+</ol>
+
+<figure>
+  <img src="docs/img/animales-lote.png" alt="Selección de lote de animales" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+  <span class="img-placeholder" style="display:none">[ Captura: listado de animales con 5-10 casillas marcadas y la barra verde inferior visible ]</span>
+  <figcaption>La barra verde aparece automáticamente cuando seleccionas uno o más animales.</figcaption>
+</figure>
+
+<div class="callout warn">
+  <strong>⚠ Cuidado al borrar</strong>
+  El botón 🗑 elimina un animal definitivamente. Si solo quieres marcarlo como vendido o muerto, usa
+  <span class="btn-ref">Editar</span> y cambia el estado, o registra un evento de venta/muerte.
+</div>
+
+
+<!-- ===== EVENTOS ===== -->
+
+<h2 id="eventos">📋 Eventos</h2>
+
+<p>
+  Es el <strong>diario de bordo</strong> del rebaño. Lo que en Animales ves “animal por animal”, aquí
+  lo ves todo junto y filtrable: “qué pasó esta semana”, “cuántos partos hubo este año”, “qué pesajes
+  hice en marzo”…
+</p>
+
+<figure>
+  <img src="docs/img/eventos-listado.png" alt="Listado de eventos" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+  <span class="img-placeholder" style="display:none">[ Captura: pantalla de Eventos con la barra de filtros arriba y la lista de eventos abajo ]</span>
+  <figcaption>Los eventos se agrupan por fecha. Si fueron eventos de lote (varios animales a la vez), aparecen plegados y puedes desplegarlos.</figcaption>
+</figure>
+
+<h3>Filtros disponibles</h3>
+<ul>
+  <li><strong>Tipo de evento</strong>: parto, peso, venta, compra, etc. (puedes marcar varios).</li>
+  <li><strong>Desde / Hasta</strong>: rango de fechas.</li>
+  <li><strong>Explotación</strong>: si tienes varias.</li>
+  <li><strong>Titular</strong>.</li>
+</ul>
+<p>El botón <span class="btn-ref">✕ Limpiar</span> aparece cuando hay algún filtro aplicado y los quita todos a la vez.</p>
+
+<h3>Lotes</h3>
+<p>
+  Cuando un evento se ha aplicado a varios animales a la vez (por ejemplo, una venta conjunta), se
+  muestra como una sola fila con un botón <span class="btn-ref">▶ Ver</span> que despliega los
+  animales individuales del lote.
+</p>
+
+<p>Sobre un lote puedes:</p>
+<ul>
+  <li><strong>Editar el lote completo</strong>: cambiar fecha, importe total, descripción… Los cambios se aplican a todos sus eventos.</li>
+  <li><strong>Eliminar el lote</strong>: borra todos los eventos del lote y la transacción asociada. Si era una venta, los animales vuelven a “activo”.</li>
+</ul>
+
+
+<!-- ===== FINANZAS ===== -->
+
+<h2 id="finanzas">💰 Finanzas</h2>
+
+<p>
+  Aquí está la contabilidad: <strong>ingresos</strong> y <strong>gastos</strong>. Algunos los crea la
+  app sola cuando registras ventas/compras desde Animales o Eventos; otros los añades a mano
+  (combustible, pienso, vacunas, subvenciones, etc.).
+</p>
+
+<figure>
+  <img src="docs/img/finanzas-ingresos.png" alt="Pestaña de ingresos en Finanzas" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+  <span class="img-placeholder" style="display:none">[ Captura: vista de Finanzas con la pestaña "Ingresos" activa, mostrando el resumen del año y la tabla de transacciones ]</span>
+  <figcaption>Dos pestañas separan ingresos y gastos. Arriba, el resumen del año filtrado.</figcaption>
+</figure>
+
+<h3>Filtros</h3>
+<ul>
+  <li><strong>Año</strong>: año al que pertenece la transacción.</li>
+  <li><strong>Explotación</strong>.</li>
+  <li><strong>Categorías de ingreso</strong> / <strong>de gasto</strong>: marcas las que quieres ver.</li>
+  <li><strong>Titular</strong>.</li>
+</ul>
+
+<h3>Crear un ingreso o un gasto a mano</h3>
+<ol>
+  <li>Pulsa <span class="btn-ref">+ Ingreso</span> o <span class="btn-ref">+ Gasto</span>.</li>
+  <li>Rellena los campos:</li>
+</ol>
+
+<table class="steps">
+  <thead><tr><th>Campo</th><th>Obligatorio</th><th>Notas</th></tr></thead>
+  <tbody>
+    <tr><td><span class="field">Importe</span></td><td>Sí</td><td>En euros, sin signo. La pestaña ya distingue si es ingreso o gasto.</td></tr>
+    <tr><td><span class="field">Fecha</span></td><td>Sí</td><td>Por defecto, hoy.</td></tr>
+    <tr><td><span class="field">Categoría</span></td><td>Sí</td><td>De la lista. Si no tienes la que necesitas, créala en Ajustes → Categorías.</td></tr>
+    <tr><td><span class="field">Descripción</span></td><td>No</td><td>Texto libre. Útil para luego recordar a qué se refería.</td></tr>
+    <tr><td><span class="field">Referencia</span></td><td>No</td><td>Número de factura, albarán o lo que te sirva.</td></tr>
+    <tr><td><span class="field">Explotación</span></td><td>No</td><td>Si tienes varias.</td></tr>
+    <tr><td><span class="field">Titular</span></td><td>No</td><td>Si lo dejas vacío y hay varios titulares, el gasto se considera <strong>común</strong> y se reparte proporcionalmente entre todos los titulares en los informes.</td></tr>
+  </tbody>
+</table>
+
+<div class="callout tip">
+  <strong>💡 Comp. (común)</strong>
+  Verás esta etiqueta junto a las transacciones que no tienen titular asignado. En la cuenta de
+  resultados de cada titular, esos gastos comunes se reparten en partes iguales.
+</div>
+
+<h3>Editar o borrar</h3>
+<p>
+  Cada fila tiene los botones <span class="btn-ref">Editar</span> y <span class="btn-ref">🗑</span>.
+  Las transacciones creadas automáticamente por una venta/compra de animales también se pueden editar
+  y borrar; si las borras, el evento del animal queda sin importe (pero el animal mantiene su estado
+  “vendido”).
+</p>
+
+
+<!-- ===== INFORMES ===== -->
+
+<h2 id="informes">📈 Informes</h2>
+
+<p>
+  El módulo de informes da una visión <strong>anual y agregada</strong> de la explotación. Está
+  pensado para imprimir y archivar, o para enseñárselo al gestor a final de año.
+</p>
+
+<figure>
+  <img src="docs/img/informes-anual.png" alt="Informe anual" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+  <span class="img-placeholder" style="display:none">[ Captura: pantalla de Informes con la cuenta de resultados, las dos tablas de categorías, el gráfico circular de gastos y la tabla de inventario del rebaño ]</span>
+  <figcaption>Toda la información del año en una sola pantalla.</figcaption>
+</figure>
+
+<h3>Qué incluye</h3>
+
+<ol>
+  <li><strong>Cuenta de resultados</strong>: ingresos, gastos y balance del año seleccionado.</li>
+  <li><strong>Ingresos por categoría</strong>: tabla con cuánto entró por cada concepto (ventas de animales, subvenciones, etc.).</li>
+  <li><strong>Gastos por categoría</strong>: lo mismo pero de los gastos.</li>
+  <li><strong>Desglose de gastos</strong>: gráfico circular para ver de un vistazo a qué se va el dinero.</li>
+  <li><strong>Inventario del rebaño</strong>: cuántos animales hay por especie y por estado (activos, vendidos, muertos).</li>
+</ol>
+
+<h3>Filtros</h3>
+<p>Los mismos que en Finanzas: año, explotación, categorías y titular. Cuando alguno está aplicado, aparece un cartel <span class="badge">Filtrado</span> al lado del título.</p>
+
+<h3>Imprimir</h3>
+<p>
+  El botón <span class="btn-ref">🖨 Imprimir</span> abre el diálogo de impresión del sistema. Desde
+  ahí puedes mandarlo a una impresora o guardarlo como PDF (la opción “Guardar como PDF” suele estar
+  disponible en cualquier ordenador moderno).
+</p>
+
+
+<!-- ===== AJUSTES ===== -->
+
+<h2 id="ajustes">⚙️ Ajustes</h2>
+
+<p>La pantalla de configuración. Es lo primero que conviene revisar al empezar.</p>
+
+<figure>
+  <img src="docs/img/ajustes-general.png" alt="Pantalla de ajustes" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+  <span class="img-placeholder" style="display:none">[ Captura: pantalla de Ajustes mostrando las secciones principales (Titulares, Mi explotación, Categorías, Explotaciones, Empleados, Copia de seguridad, Google Drive, Versión y Zona peligrosa) ]</span>
+  <figcaption>Ajustes está dividido en secciones; te puedes mover por ellas haciendo scroll.</figcaption>
+</figure>
+
+
+<h3 id="titulares">Titulares</h3>
+
+<p>
+  Un titular es una persona dueña (total o parcialmente) de la explotación. Se usa si la ganadería
+  está compartida entre varios socios o miembros de una familia.
+</p>
+
+<p>Cada titular tiene su propio balance: la app calcula automáticamente cuánto le toca de cada gasto común.</p>
+
+<ul>
+  <li>Para añadir uno: <span class="btn-ref">+ Añadir titular</span> y pon el nombre.</li>
+  <li>Los animales se asignan a un titular desde la ficha del animal (campo <span class="field">Titular</span>).</li>
+  <li>Los ingresos y gastos también se pueden asignar a un titular concreto. Si no se asigna ninguno, son <strong>comunes</strong> y se reparten.</li>
+</ul>
+
+<div class="callout tip">
+  <strong>💡 Cómo se reparten los gastos comunes</strong>
+  Si hay 3 titulares y registras un gasto común de 300 €, la cuenta de resultados de cada titular
+  verá 100 €. El balance global no cambia: sigue siendo un gasto único de 300 €.
+</div>
+
+
+<h3 id="mi-explotacion">Mi explotación</h3>
+<p>Aquí pones el nombre principal que aparece en la cabecera de la app (por ejemplo, “Ganadería González”).</p>
+
+
+<h3 id="categorias">Categorías</h3>
+
+<p>
+  Las categorías sirven para agrupar ingresos y gastos. La app trae unas por defecto (Venta de
+  animales, Pienso, Veterinario, Combustible…) pero puedes añadir las que necesites.
+</p>
+
+<figure>
+  <img src="docs/img/ajustes-categorias.png" alt="Gestión de categorías" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+  <span class="img-placeholder" style="display:none">[ Captura: sección Categorías de ajustes con la pestaña de Gastos activa, mostrando varias categorías con sus botones de editar y eliminar ]</span>
+  <figcaption>Categorías de ingreso y de gasto se gestionan en pestañas separadas.</figcaption>
+</figure>
+
+<ul>
+  <li>Las marcadas como <span class="badge">sistema</span> no se pueden borrar ni renombrar (son las que usa la app automáticamente para ventas y compras de animales).</li>
+  <li>Las demás se pueden editar (✏️) o eliminar (🗑). Si eliminas una categoría que estaba en uso, esas transacciones quedan como “Sin categoría”.</li>
+</ul>
+
+
+<h3 id="explotaciones">Explotaciones</h3>
+
+<p>
+  Si tu ganadería tiene varias <strong>fincas, parcelas o cebaderos</strong> que quieres distinguir,
+  puedes darlos de alta como explotaciones. Cada animal y cada transacción se pueden asignar a una de
+  ellas, y luego puedes filtrar por explotación en Animales, Eventos, Finanzas e Informes.
+</p>
+
+<p>Cambiar el nombre de una explotación actualiza la cabecera principal de la app si era la elegida como “explotación activa”.</p>
+
+
+<h3 id="empleados">Empleados</h3>
+
+<p>
+  Para llevar el control de los empleados de la ganadería: nombre, salario y % de Seguridad Social.
+  Cuando registras un salario o un pago a la Seguridad Social en Finanzas, se vincula al empleado.
+</p>
+
+<p>
+  El campo <strong>% Seguridad Social empleador</strong> (arriba de la sección) es el porcentaje
+  general que se aplica a los salarios para calcular la cuota patronal. Por defecto está en 30 %.
+</p>
+
+
+<h3 id="copia-seguridad">Copia de seguridad</h3>
+
+<p>
+  Tus datos viven en el navegador del dispositivo. Si pierdes el móvil, los desinstalas o cambias de
+  ordenador, los datos se pierden <strong>salvo que tengas una copia</strong>. Hay tres opciones para
+  guardarlos:
+</p>
+
+<figure>
+  <img src="docs/img/ajustes-backup.png" alt="Sección de copia de seguridad" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+  <span class="img-placeholder" style="display:none">[ Captura: sección "Copia de seguridad" de ajustes con los tres botones de exportar y el campo de restaurar ]</span>
+  <figcaption>Tres formas de exportar: un backup completo en JSON, o una hoja CSV para abrir en Excel.</figcaption>
+</figure>
+
+<ul>
+  <li><strong>📦 Exportar backup JSON</strong>: descarga un fichero con <em>todo</em>: animales, eventos, transacciones, ajustes, categorías… Es lo que se restaura.</li>
+  <li><strong>📄 Exportar animales CSV</strong>: hoja de cálculo con la lista de animales (para abrir en Excel, LibreOffice o Google Sheets).</li>
+  <li><strong>📄 Exportar transacciones CSV</strong>: hoja de cálculo con todos los ingresos y gastos.</li>
+  <li><strong>Restaurar backup JSON</strong>: elige un fichero JSON exportado previamente. <strong>Atención</strong>: reemplaza completamente los datos actuales.</li>
+</ul>
+
+<div class="callout warn">
+  <strong>⚠ Recomendación</strong>
+  Haz un backup JSON al menos una vez al mes y guárdalo en un sitio seguro (correo, USB, Drive…). Si
+  algo va mal, podrás volver a un punto anterior.
+</div>
+
+
+<h3 id="drive">Google Drive (opcional)</h3>
+
+<p>
+  Si quieres que el ordenador y el móvil tengan siempre los mismos datos, puedes vincular la app a tu
+  Google Drive personal. La app guarda allí una copia que se actualiza al sincronizar.
+</p>
+
+<figure>
+  <img src="docs/img/ajustes-drive.png" alt="Sección de Google Drive" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+  <span class="img-placeholder" style="display:none">[ Captura: sección Google Drive ya conectada, con los botones "Subir a Drive", "Descargar de Drive" y "Desconectar" ]</span>
+  <figcaption>Una vez conectado, sincronizar es cuestión de pulsar un botón.</figcaption>
+</figure>
+
+<ol>
+  <li>Pulsa <span class="btn-ref">🔗 Conectar con Google Drive</span>.</li>
+  <li>Inicia sesión con tu cuenta Google y acepta los permisos.</li>
+  <li>Cuando estés conectado, usa:
+    <ul>
+      <li><span class="btn-ref">⬆ Subir a Drive</span> en el dispositivo donde has hecho cambios.</li>
+      <li><span class="btn-ref">⬇ Descargar de Drive</span> en el otro dispositivo para traer esos cambios.</li>
+    </ul>
+  </li>
+</ol>
+
+<div class="callout warn">
+  <strong>⚠ La sincronización no es automática en ambos sentidos</strong>
+  Si trabajas en el móvil y en el ordenador a la vez sin sincronizar entre medias, los datos pueden
+  desfasarse. Costumbre recomendada: <em>descarga</em> al empezar a usar el dispositivo, trabaja, y
+  <em>sube</em> al terminar.
+</div>
+
+
+<h3 id="zona-peligrosa">Zona peligrosa</h3>
+
+<div class="callout danger">
+  <strong>🛑 Borrar todos los datos</strong>
+  El botón <span class="btn-ref">🗑 Borrar todo</span> elimina absolutamente todo: animales, eventos,
+  transacciones, categorías personalizadas, titulares y explotaciones. <strong>No hay vuelta atrás</strong>.
+  Antes de usarlo, exporta un backup JSON.
+</div>
+
+
+<!-- ====================================================== -->
+<!-- FAQ                                                    -->
+<!-- ====================================================== -->
+
+<h2 id="faq">Preguntas frecuentes</h2>
+
+<details class="faq">
+  <summary>¿Dónde se guardan mis datos?</summary>
+  <p>
+    En la memoria local del navegador del dispositivo que estés usando. Es similar a cómo el
+    WhatsApp Web guarda tus chats: ni Anthropic, ni el desarrollador, ni nadie tiene acceso. Si
+    además conectas Google Drive (opcional), se guarda una copia en <em>tu</em> Drive personal.
+  </p>
+</details>
+
+<details class="faq">
+  <summary>¿Funciona sin internet?</summary>
+  <p>
+    Sí. La primera vez necesitas conexión para abrirla, pero a partir de ahí puedes usarla sin
+    cobertura. Lo único que necesita internet es la sincronización con Google Drive.
+  </p>
+</details>
+
+<details class="faq">
+  <summary>¿Puedo usar el móvil y el ordenador al mismo tiempo?</summary>
+  <p>
+    Sí, pero la sincronización entre los dos pasa por Google Drive y es <strong>manual</strong>: hay
+    que pulsar “Subir” en uno y “Descargar” en el otro. Si trabajas en los dos sin sincronizar,
+    pueden quedar desfasados.
+  </p>
+</details>
+
+<details class="faq">
+  <summary>Vendí 20 corderos juntos. ¿Tengo que crear 20 ingresos?</summary>
+  <p>
+    No. En <strong>Animales</strong>, marca los 20 con la casilla, pulsa <span class="btn-ref">Aplicar evento</span>,
+    elige “Venta” y pon el importe total. La app marca los 20 como vendidos y crea <strong>un solo
+    ingreso</strong> por el total del lote.
+  </p>
+</details>
+
+<details class="faq">
+  <summary>Borré un animal por error. ¿Se puede recuperar?</summary>
+  <p>
+    No directamente desde la app, pero si tienes un backup JSON anterior al borrado, puedes
+    restaurarlo desde <strong>Ajustes → Copia de seguridad → Restaurar backup JSON</strong>. Ten en
+    cuenta que eso restaurará <em>todos</em> los datos al momento del backup, no solo el animal.
+  </p>
+</details>
+
+<details class="faq">
+  <summary>El balance del año no me cuadra.</summary>
+  <p>
+    Revisa estas tres cosas:
+  </p>
+  <ol>
+    <li>¿Está activo algún filtro? El cartel <span class="badge">Filtrado</span> aparece arriba si hay filtros aplicados. Pulsa <span class="btn-ref">✕ Limpiar</span> para verlo todo.</li>
+    <li>¿Tienes el titular correcto seleccionado? El filtro de titular afecta a Informes.</li>
+    <li>¿Están bien las fechas? Una transacción con fecha del año anterior no entrará en el año actual.</li>
+  </ol>
+</details>
+
+<details class="faq">
+  <summary>¿Puedo cambiar la moneda?</summary>
+  <p>
+    De momento, no. Toda la app trabaja en euros (€).
+  </p>
+</details>
+
+<details class="faq">
+  <summary>¿Cuántos animales/eventos puedo guardar?</summary>
+  <p>
+    En la práctica, miles. El navegador limita el espacio (suelen ser cientos de megabytes), pero
+    eso da para muchísimos años de explotación normal.
+  </p>
+</details>
+
+<details class="faq">
+  <summary>¿Cómo paso los datos a otra app o a mi gestor?</summary>
+  <p>
+    Usa <strong>Ajustes → Exportar animales CSV</strong> o <strong>Exportar transacciones CSV</strong>.
+    Esos ficheros se abren directamente en Excel, LibreOffice o Google Sheets. Para enviárselos al
+    gestor, basta con adjuntarlos por correo.
+  </p>
+</details>
+
+
+<!-- ====================================================== -->
+<!-- GLOSARIO                                               -->
+<!-- ====================================================== -->
+
+<h2 id="glosario">Glosario</h2>
+
+<dl>
+  <dt><strong>Activo</strong></dt>
+  <dd>Animal vivo y todavía en la explotación. Es el estado por defecto al darlo de alta.</dd>
+
+  <dt><strong>Backup</strong></dt>
+  <dd>Copia de seguridad. Fichero (JSON) que contiene todos tus datos y que puede usarse para restaurar la app si pasa algo.</dd>
+
+  <dt><strong>Balance</strong></dt>
+  <dd>Diferencia entre ingresos y gastos. Positivo = ganancia. Negativo = pérdida.</dd>
+
+  <dt><strong>Categoría</strong></dt>
+  <dd>Etiqueta que agrupa ingresos o gastos por tipo: pienso, veterinario, venta de animales, subvención, etc.</dd>
+
+  <dt><strong>Crotal</strong></dt>
+  <dd>Identificador único de cada animal (la chapa de la oreja). En la app es obligatorio.</dd>
+
+  <dt><strong>CSV</strong></dt>
+  <dd>Formato de fichero de hoja de cálculo. Se abre en Excel, LibreOffice o Google Sheets.</dd>
+
+  <dt><strong>Cuenta de resultados</strong></dt>
+  <dd>Resumen anual de ingresos, gastos y balance. Lo encuentras en Informes.</dd>
+
+  <dt><strong>Evento</strong></dt>
+  <dd>Cualquier hecho que se anota sobre un animal o un lote: parto, pesaje, venta, compra, muerte, tratamiento sanitario u “otro”.</dd>
+
+  <dt><strong>Explotación</strong></dt>
+  <dd>Una finca, parcela o cebadero. Si tienes varias, puedes asignar animales y transacciones a cada una.</dd>
+
+  <dt><strong>JSON</strong></dt>
+  <dd>Formato del fichero de backup completo. No se abre tan fácil como un CSV, pero contiene <em>todo</em>.</dd>
+
+  <dt><strong>Lote</strong></dt>
+  <dd>Conjunto de animales sobre los que se aplica el mismo evento a la vez (por ejemplo, vender 20 corderos juntos).</dd>
+
+  <dt><strong>Titular</strong></dt>
+  <dd>Persona dueña (total o parcialmente) de la explotación. Si hay varios, cada uno tiene su propio balance y los gastos sin titular asignado se reparten.</dd>
+
+  <dt><strong>Transacción</strong></dt>
+  <dd>Un ingreso o un gasto registrado en Finanzas.</dd>
+</dl>
+
+
+<p style="margin-top:40px;text-align:center;color:var(--muted);font-size:0.85rem;border-top:1px solid var(--border);padding-top:20px;">
+  Manual de GanaderíaApp · revisa siempre la versión en <strong>Ajustes</strong> al pie de la página.
+</p>
+
+</article>
+</div>
+</body>
+</html>

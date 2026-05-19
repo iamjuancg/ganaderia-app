@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ganaderia-v25';
+const CACHE_NAME = 'ganaderia-v26';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -23,6 +23,7 @@ const STATIC_ASSETS = [
   './js/views/ajustes.js',
   './offline.html',
   './manifest.json',
+  './MANUAL.html',
 ];
 
 self.addEventListener('install', e => {

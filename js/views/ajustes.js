@@ -146,6 +146,15 @@ export async function renderAjustes(container) {
       ${renderDriveSection()}
     </div>
 
+    <!-- Ayuda -->
+    <div class="settings-section">
+      <div class="settings-section-title">Ayuda</div>
+      <div class="card">
+        <p class="text-muted text-small" style="margin-bottom:12px;">Manual de uso paso a paso de todos los módulos de la app.</p>
+        <a class="btn btn-secondary" href="MANUAL.html" target="_blank" rel="noopener">📖 Abrir manual</a>
+      </div>
+    </div>
+
     <!-- Versión -->
     <div class="settings-section">
       <p class="text-muted text-small" style="text-align:center;">Versión: <code>${APP_VERSION}</code></p>
