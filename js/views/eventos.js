@@ -63,10 +63,15 @@ export async function renderEventos(container) {
         break;
       }
       case 'edit-batch': {
-        const [allEvs, allAnimales] = await Promise.all([getAll('eventos'), getAll('animales')]);
+        const [allEvs, allAnimales, allTxs] = await Promise.all([getAll('eventos'), getAll('animales'), getAll('transacciones')]);
         const batchEvs = allEvs.filter(ev => ev.batchId === batchId);
+        // Importe total del lote: prioridad a la tx agregada (post-B-16);
+        // fallback a suma de importes individuales (lotes viejos).
+        const evWithTx = batchEvs.find(ev => ev.transaccionId);
+        const txAgregada = evWithTx ? allTxs.find(t => t.id === evWithTx.transaccionId) : null;
+        const batchTotalImporte = txAgregada?.importe ?? batchEvs.reduce((s, e) => s + (e.importe || 0), 0);
         const { overlay } = openModal({ title: `Editar lote (${batchEvs.length} animales)`, bodyHtml: '<div id="bef-slot"></div>' });
-        renderBatchEditForm(overlay.querySelector('#bef-slot'), batchEvs, allAnimales, () => {
+        renderBatchEditForm(overlay.querySelector('#bef-slot'), batchEvs, allAnimales, batchTotalImporte, () => {
           overlay.remove();
           loadEventos(container);
         });
@@ -156,9 +161,22 @@ async function loadEventos(container) {
   const clearBtn = container.querySelector('#ev-clear-filters');
   if (clearBtn) clearBtn.style.display = activeCount > 0 ? '' : 'none';
 
-  const [eventos, animales] = await Promise.all([getAll('eventos'), getAll('animales')]);
+  const [eventos, animales, transacciones] = await Promise.all([getAll('eventos'), getAll('animales'), getAll('transacciones')]);
   const animalMap = Object.fromEntries(animales.map(a => [a.id, a]));
   const explotMap = Object.fromEntries(_explotaciones.map(e => [e.id, e.nombre]));
+  const txMap = Object.fromEntries(transacciones.map(t => [t.id, t]));
+
+  // Importe del lote: viene de la transacción agregada vinculada al primer evento
+  // que tenga transaccionId (los eventos individuales tienen importe: null tras B-16).
+  // Fallback: suma de importes individuales (compatibilidad con lotes viejos pre-B-16).
+  const batchImporte = (evs) => {
+    const evWithTx = evs.find(e => e.transaccionId);
+    if (evWithTx) {
+      const tx = txMap[evWithTx.transaccionId];
+      if (tx?.importe) return tx.importe;
+    }
+    return evs.reduce((s, e) => s + (e.importe || 0), 0);
+  };
 
   let filtered = [...eventos];
   if (filterTipos.size > 0) filtered = filtered.filter(e => filterTipos.has(e.tipo));
@@ -219,7 +237,7 @@ async function loadEventos(container) {
 
   const renderBatchGroup = (batchId, evs) => {
     const firstEv = evs[0];
-    const totalImporte = evs.reduce((s, e) => s + (e.importe || 0), 0);
+    const totalImporte = batchImporte(evs);
     const preview = evs.slice(0, 3).map(ev => {
       const a = animalMap[ev.animalId];
       return a ? escapeHtml(a.crotal) : '—';
@@ -273,7 +291,7 @@ async function loadEventos(container) {
 
 }
 
-async function renderBatchEditForm(slot, events, allAnimales, onSave) {
+async function renderBatchEditForm(slot, events, allAnimales, currentTotalImporte, onSave) {
   const animalMap = Object.fromEntries(allAnimales.map(a => [a.id, a]));
   const firstEv = events[0];
   const toRemove = new Set();
@@ -331,7 +349,7 @@ async function renderBatchEditForm(slot, events, allAnimales, onSave) {
     if (tipo === 'peso') {
       extra.innerHTML = `<div class="form-group"><label class="form-label">Peso (kg)</label><input type="number" inputmode="decimal" class="form-control" id="bef-peso" min="0" step="0.1" value="${sameType && firstEv.peso != null ? firstEv.peso : ''}"></div>`;
     } else if (['venta', 'compra'].includes(tipo)) {
-      const totalLote = sameType ? events.reduce((s, e) => s + (e.importe || 0), 0) : 0;
+      const totalLote = sameType ? (currentTotalImporte ?? 0) : 0;
       extra.innerHTML = `<div class="grid-2">
         <div class="form-group"><label class="form-label">Importe total lote (€)</label><input type="number" inputmode="decimal" class="form-control" id="bef-importe" min="0" step="0.01" value="${totalLote > 0 ? parseFloat(totalLote.toFixed(2)) : ''}"></div>
         <div class="form-group"><label class="form-label">${tipo === 'venta' ? 'Comprador' : 'Vendedor'}</label><input class="form-control" id="bef-contraparte" value="${sameType ? escapeHtml(firstEv.contraparte ?? '') : ''}"></div>
