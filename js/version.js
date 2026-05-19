@@ -1,1 +1,1 @@
-export const APP_VERSION = 'informes-titular-fix';
+export const APP_VERSION = 'informes-rebano-filter';

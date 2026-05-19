@@ -117,11 +117,15 @@ async function loadInformes(container) {
   const ingCat = byCat(ingresos);
   const gastCat = byCat(gastos);
 
-  // --- Rebaño ---
+  // --- Rebaño (aplicar filtros de titular y explotación) ---
   const ESTADOS = ['activo', 'vendido', 'muerto'];
-  const animalesFiltrados = activeTitularId === 'all'
-    ? animales
-    : animales.filter(a => a.titularId === activeTitularId);
+  let animalesFiltrados = animales;
+  if (activeTitularId !== 'all') {
+    animalesFiltrados = animalesFiltrados.filter(a => a.titularId === activeTitularId);
+  }
+  if (filterExplotaciones.size > 0) {
+    animalesFiltrados = animalesFiltrados.filter(a => filterExplotaciones.has(a.explotacionId));
+  }
   const especiesSet = [...new Set(animalesFiltrados.map(a => a.especie))].sort();
   const rebanoData = {};
   for (const a of animalesFiltrados) {
