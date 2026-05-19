@@ -87,6 +87,17 @@ export function getByIndex(store, indexName, value) {
   });
 }
 
+// Consulta por rango en un índice. `from` y `to` ambos inclusivos.
+// Útil para filtrar por fecha sin cargar todos los registros a memoria.
+export function getByRange(store, indexName, from, to) {
+  return new Promise((res, rej) => {
+    const range = IDBKeyRange.bound(from, to);
+    const req = tx(store).index(indexName).getAll(range);
+    req.onsuccess = e => res(e.target.result);
+    req.onerror = e => rej(e.target.error);
+  });
+}
+
 export function put(store, record) {
   return new Promise((res, rej) => {
     const req = tx(store, 'readwrite').put(record);
@@ -100,6 +111,25 @@ export function remove(store, id) {
     const req = tx(store, 'readwrite').delete(id);
     req.onsuccess = e => res(e.target.result);
     req.onerror = e => rej(e.target.error);
+  });
+}
+
+// Ejecuta varias operaciones en UNA sola transacción IndexedDB readwrite.
+// `stores` = array de nombres; `work(tx)` recibe la transacción y emite puts/deletes
+// sin esperar a cada uno (mucho más rápido que llamar put() en bucle).
+//
+// Ejemplo:
+//   await batch(['eventos','animales'], t => {
+//     eventos.forEach(e => t.objectStore('eventos').put(e));
+//     animales.forEach(a => t.objectStore('animales').put(a));
+//   });
+export function batch(stores, work) {
+  return new Promise((res, rej) => {
+    const t = db.transaction(stores, 'readwrite');
+    t.oncomplete = () => res();
+    t.onerror = e => rej(e.target.error);
+    t.onabort = e => rej(e.target.error);
+    try { work(t); } catch (err) { rej(err); }
   });
 }
 
@@ -135,21 +165,25 @@ export async function exportAll() {
 
 export async function importAll(data) {
   const stores = ['animales', 'eventos', 'transacciones', 'categorias', 'explotaciones', 'empleados', 'titulares'];
-  for (const store of stores) {
-    if (!data[store]) continue;
-    for (const record of data[store]) await put(store, record);
-  }
+  const present = stores.filter(s => Array.isArray(data[s]));
+  if (present.length === 0) return;
+  await batch(present, t => {
+    for (const store of present) {
+      const os = t.objectStore(store);
+      for (const record of data[store]) os.put(record);
+    }
+  });
 }
 
 export async function replaceAll(data) {
   const stores = ['animales', 'eventos', 'transacciones', 'categorias', 'explotaciones', 'empleados', 'titulares'];
-  for (const store of stores) {
-    await new Promise((res, rej) => {
-      const req = tx(store, 'readwrite').clear();
-      req.onsuccess = () => res();
-      req.onerror = e => rej(e.target.error);
-    });
-    if (!data[store]) continue;
-    for (const record of data[store]) await put(store, record);
-  }
+  await batch(stores, t => {
+    for (const store of stores) {
+      const os = t.objectStore(store);
+      os.clear();
+      if (Array.isArray(data[store])) {
+        for (const record of data[store]) os.put(record);
+      }
+    }
+  });
 }

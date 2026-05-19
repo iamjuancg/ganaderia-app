@@ -36,10 +36,32 @@ export async function updateExplotacionName() {
   document.title = name ? `${name} — GanaderíaApp` : 'GanaderíaApp';
 }
 
+// ── Cache en memoria de catálogos pequeños (titulares, explotaciones) ──
+// Estos datos cambian raramente (solo desde Ajustes) pero se leen mucho
+// (cada apertura de modal de animal/tx). Cache simple invalidado a mano.
+const _cache = { titulares: null, explotaciones: null };
+
+export async function getCachedTitulares() {
+  if (_cache.titulares === null) _cache.titulares = await getAll('titulares');
+  return _cache.titulares;
+}
+
+export async function getCachedExplotaciones() {
+  if (_cache.explotaciones === null) _cache.explotaciones = await getAll('explotaciones');
+  return _cache.explotaciones;
+}
+
+export function invalidateTitularesCache() { _cache.titulares = null; }
+export function invalidateExplotacionesCache() { _cache.explotaciones = null; }
+export function invalidateAllCache() {
+  _cache.titulares = null;
+  _cache.explotaciones = null;
+}
+
 // Filtro de titular tipo dropdown (mismo estilo visual que el de explotaciones).
 // Se renderiza en `container.querySelector('#' + wrapperId)` y al cambiar llama a onchange().
 export async function renderTitularFilter(container, wrapperId, onchange) {
-  const titulares = await getAll('titulares');
+  const titulares = await getCachedTitulares();
   const wrapper = container.querySelector('#' + wrapperId);
   if (!wrapper) return;
 

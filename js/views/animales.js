@@ -1,9 +1,9 @@
-import { getAll, put, remove } from '../db/database.js';
-import { uid, ESPECIES, TIPOS_EVENTO, escapeHtml, formatEur, eventoLabel } from '../utils/format.js';
+import { getAll, put, remove, batch } from '../db/database.js';
+import { uid, ESPECIES, TIPOS_EVENTO, escapeHtml, formatEur, eventoLabel, debounce } from '../utils/format.js';
 import { formatDate, todayISO } from '../utils/date.js';
 import { showToast } from '../utils/toast.js';
 import { openModal, confirmModal } from '../utils/modal.js';
-import { getActiveTitularId, renderTitularFilter } from '../utils/appstate.js';
+import { getActiveTitularId, renderTitularFilter, getCachedTitulares, getCachedExplotaciones } from '../utils/appstate.js';
 import { initDropdownCloser } from '../utils/dropdown.js';
 import { renderEventoForm } from './eventos.js';
 
@@ -24,7 +24,7 @@ function updateSelectionBar(container) {
 
 export async function renderAnimales(container) {
   selectedAnimalIds.clear();
-  [_explotaciones, _titulares] = await Promise.all([getAll('explotaciones'), getAll('titulares')]);
+  [_explotaciones, _titulares] = await Promise.all([getCachedExplotaciones(), getCachedTitulares()]);
 
   container.innerHTML = `
     <div class="page-header">
@@ -69,7 +69,8 @@ export async function renderAnimales(container) {
     renderAnimalForm(overlay.querySelector('#af-slot'), null, () => { overlay.remove(); refresh(); });
   });
 
-  container.querySelector('#search-animal').addEventListener('input', e => { filterSearch = e.target.value; refresh(); });
+  const debouncedSearch = debounce((value) => { filterSearch = value; refresh(); }, 150);
+  container.querySelector('#search-animal').addEventListener('input', e => debouncedSearch(e.target.value));
   container.querySelector('#filter-especie').addEventListener('change', e => { filterEspecie = e.target.value; refresh(); });
   container.querySelector('#filter-status').addEventListener('change', e => { filterStatus = e.target.value; refresh(); });
   container.querySelector('#filter-explotacion')?.addEventListener('change', e => { filterExplotacion = e.target.value; refresh(); });
@@ -361,51 +362,59 @@ async function renderBulkEventoForm(slot, animals, onSave) {
 
     const titularIdSet = new Set(animals.map(a => a.titularId ?? null));
     const batchTitularId = titularIdSet.size === 1 ? [...titularIdSet][0] : null;
+    const now = new Date().toISOString();
 
-    let batchTransaccionId = null;
-    if ((tipo === 'venta' || tipo === 'compra') && importe) {
-      batchTransaccionId = uid();
-      const firstAnim = animals[0];
-      await put('transacciones', {
-        id: batchTransaccionId,
-        tipo: tipo === 'venta' ? 'ingreso' : 'gasto',
-        importe,
-        fecha: fechaISO,
-        categoriaId: tipo === 'venta' ? 'sys-venta-animales' : 'sys-compra-animales',
-        descripcion: `${tipo === 'venta' ? 'Venta' : 'Compra'} lote: ${animals.length} animales`,
-        referencia: null,
-        explotacionId: firstAnim.explotacionId ?? null,
-        titularId: batchTitularId,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
-    }
+    // Preparar registros en memoria; commit en una sola transacción.
+    const transaccionRecord = ((tipo === 'venta' || tipo === 'compra') && importe)
+      ? {
+          id: uid(),
+          tipo: tipo === 'venta' ? 'ingreso' : 'gasto',
+          importe,
+          fecha: fechaISO,
+          categoriaId: tipo === 'venta' ? 'sys-venta-animales' : 'sys-compra-animales',
+          descripcion: `${tipo === 'venta' ? 'Venta' : 'Compra'} lote: ${animals.length} animales`,
+          referencia: null,
+          explotacionId: animals[0].explotacionId ?? null,
+          titularId: batchTitularId,
+          createdAt: now,
+          updatedAt: now,
+        }
+      : null;
     const importePerAnimal = importe && animals.length > 0 ? importe / animals.length : null;
 
-    for (let i = 0; i < animals.length; i++) {
-      const anim = animals[i];
-      await put('eventos', {
-        id: uid(),
-        animalId: anim.id,
-        tipo,
-        fecha: fechaISO,
-        descripcion,
-        peso,
-        importe: importePerAnimal,
-        contraparte,
-        transaccionId: i === 0 ? batchTransaccionId : null,
-        batchId,
-        createdAt: new Date().toISOString(),
-      });
+    const eventoRecords = animals.map((anim, i) => ({
+      id: uid(),
+      animalId: anim.id,
+      tipo,
+      fecha: fechaISO,
+      descripcion,
+      peso,
+      importe: importePerAnimal,
+      contraparte,
+      transaccionId: i === 0 && transaccionRecord ? transaccionRecord.id : null,
+      batchId,
+      createdAt: now,
+    }));
 
-      if (tipo === 'peso' && peso) {
-        await put('animales', { ...anim, currentWeight: peso, weightDate: fechaISO, updatedAt: new Date().toISOString() });
-      } else if (tipo === 'venta') {
-        await put('animales', { ...anim, status: 'vendido', updatedAt: new Date().toISOString() });
-      } else if (tipo === 'muerte') {
-        await put('animales', { ...anim, status: 'muerto', updatedAt: new Date().toISOString() });
-      }
-    }
+    const animalUpdates = animals
+      .map(anim => {
+        if (tipo === 'peso' && peso) return { ...anim, currentWeight: peso, weightDate: fechaISO, updatedAt: now };
+        if (tipo === 'venta') return { ...anim, status: 'vendido', updatedAt: now };
+        if (tipo === 'muerte') return { ...anim, status: 'muerto', updatedAt: now };
+        return null;
+      })
+      .filter(Boolean);
+
+    await batch(['eventos', 'transacciones', 'animales'], t => {
+      const os = {
+        eventos: t.objectStore('eventos'),
+        transacciones: t.objectStore('transacciones'),
+        animales: t.objectStore('animales'),
+      };
+      if (transaccionRecord) os.transacciones.put(transaccionRecord);
+      eventoRecords.forEach(r => os.eventos.put(r));
+      animalUpdates.forEach(r => os.animales.put(r));
+    });
 
     showToast(`Evento aplicado a ${animals.length} animales`);
     onSave();
@@ -473,7 +482,7 @@ async function openDetalle(id, container) {
 }
 
 export async function renderAnimalForm(slot, animal, onSave) {
-  const [allAnimales, explotaciones, titulares] = await Promise.all([getAll('animales'), getAll('explotaciones'), getAll('titulares')]);
+  const [allAnimales, explotaciones, titulares] = await Promise.all([getAll('animales'), getCachedExplotaciones(), getCachedTitulares()]);
   const hembras = allAnimales.filter(a => a.sexo === 'hembra' && a.id !== animal?.id);
 
   slot.innerHTML = `

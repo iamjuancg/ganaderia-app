@@ -1,10 +1,10 @@
-import { getAll, put, remove } from '../db/database.js';
+import { getAll, put, remove, getByRange } from '../db/database.js';
 import { uid, escapeHtml, formatEur } from '../utils/format.js';
 import { formatDate, todayISO, getYear, currentYear } from '../utils/date.js';
 import { showToast } from '../utils/toast.js';
 import { openModal, confirmModal } from '../utils/modal.js';
 import { buildDropdown, initDropdownCloser } from '../utils/dropdown.js';
-import { getActiveTitularId, renderTitularFilter, titularMatcher } from '../utils/appstate.js';
+import { getActiveTitularId, renderTitularFilter, titularMatcher, getCachedTitulares, getCachedExplotaciones } from '../utils/appstate.js';
 
 let activeTab = 'ingreso', filterYear = currentYear();
 let filterCatsIng = new Set();
@@ -107,8 +107,13 @@ async function getAvailableYears() {
 }
 
 async function loadFinanzas(container) {
+  // Rango "amplio" alrededor del año filtrado para tolerar fronteras de zona horaria;
+  // el filtro getYear() exacto sigue aplicándose después.
+  const yearRangeFrom = `${filterYear - 1}-12-31`;
+  const yearRangeTo = `${filterYear + 1}-01-01`;
   const [transacciones, categorias, explotaciones, titulares] = await Promise.all([
-    getAll('transacciones'), getAll('categorias'), getAll('explotaciones'), getAll('titulares')
+    getByRange('transacciones', 'fecha', yearRangeFrom, yearRangeTo),
+    getAll('categorias'), getCachedExplotaciones(), getCachedTitulares()
   ]);
   const catMap = Object.fromEntries(categorias.map(c => [c.id, c]));
   const explotMap = Object.fromEntries(explotaciones.map(e => [e.id, e.nombre]));
@@ -209,7 +214,7 @@ async function loadFinanzas(container) {
 }
 
 export async function renderTransaccionForm(slot, tipo, tx, onSave) {
-  const [categorias, explotaciones, titulares] = await Promise.all([getAll('categorias'), getAll('explotaciones'), getAll('titulares')]);
+  const [categorias, explotaciones, titulares] = await Promise.all([getAll('categorias'), getCachedExplotaciones(), getCachedTitulares()]);
   const cats = categorias.filter(c => c.tipo === tipo);
 
   slot.innerHTML = `

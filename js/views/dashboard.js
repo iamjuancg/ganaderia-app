@@ -2,7 +2,7 @@ import { getAll } from '../db/database.js';
 import { formatEur, eventoIcon, eventoLabel } from '../utils/format.js';
 import { formatDate, currentYear, getYear, getYearMonth } from '../utils/date.js';
 import { openModal } from '../utils/modal.js';
-import { getActiveTitularId, renderTitularFilter, titularMatcher } from '../utils/appstate.js';
+import { getActiveTitularId, renderTitularFilter, titularMatcher, getCachedTitulares } from '../utils/appstate.js';
 import { initDropdownCloser } from '../utils/dropdown.js';
 import { renderAnimalForm } from './animales.js';
 import { renderTransaccionForm } from './finanzas.js';
@@ -14,7 +14,7 @@ export async function renderDashboard(container) {
   <div id="dashboard-loading" class="empty-state"><div class="empty-icon">⏳</div><p>Cargando...</p></div>`;
 
   const [animales, eventos, transacciones, titulares] = await Promise.all([
-    getAll('animales'), getAll('eventos'), getAll('transacciones'), getAll('titulares')
+    getAll('animales'), getAll('eventos'), getAll('transacciones'), getCachedTitulares()
   ]);
 
   const activeTitularId = getActiveTitularId();

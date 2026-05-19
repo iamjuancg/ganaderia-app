@@ -1,17 +1,17 @@
-import { getAll, put, remove } from '../db/database.js';
+import { getAll, put, remove, batch } from '../db/database.js';
 import { uid, TIPOS_EVENTO, eventoIcon, eventoLabel, escapeHtml, formatEur } from '../utils/format.js';
 import { formatDate, todayISO } from '../utils/date.js';
 import { showToast } from '../utils/toast.js';
 import { openModal, confirmModal } from '../utils/modal.js';
 import { buildDropdown, initDropdownCloser } from '../utils/dropdown.js';
-import { getActiveTitularId, renderTitularFilter } from '../utils/appstate.js';
+import { getActiveTitularId, renderTitularFilter, getCachedExplotaciones } from '../utils/appstate.js';
 
 let filterTipos = new Set(), filterFechaDesde = '', filterFechaHasta = '';
 let filterExplotaciones = new Set();
 let _explotaciones = [];
 
 export async function renderEventos(container) {
-  _explotaciones = await getAll('explotaciones');
+  _explotaciones = await getCachedExplotaciones();
 
   container.innerHTML = `
     <div class="page-header">
@@ -77,17 +77,31 @@ export async function renderEventos(container) {
         const batchEvs = allEvs.filter(ev => ev.batchId === batchId);
         confirmModal(`¿Eliminar el lote completo? Se borrarán ${batchEvs.length} eventos y sus transacciones vinculadas.`, async () => {
           const allAnimales = await getAll('animales');
-          for (const ev of batchEvs) {
-            await remove('eventos', ev.id);
-            if (ev.transaccionId) await remove('transacciones', ev.transaccionId);
-            if ((ev.tipo === 'venta' || ev.tipo === 'muerte') && ev.animalId) {
+          const now = new Date().toISOString();
+          const animalUpdates = batchEvs
+            .filter(ev => (ev.tipo === 'venta' || ev.tipo === 'muerte') && ev.animalId)
+            .map(ev => {
               const anim = allAnimales.find(a => a.id === ev.animalId);
               const expectedStatus = ev.tipo === 'venta' ? 'vendido' : 'muerto';
-              if (anim && anim.status === expectedStatus) {
-                await put('animales', { ...anim, status: 'activo', updatedAt: new Date().toISOString() });
-              }
-            }
-          }
+              return (anim && anim.status === expectedStatus)
+                ? { ...anim, status: 'activo', updatedAt: now }
+                : null;
+            })
+            .filter(Boolean);
+
+          await batch(['eventos', 'transacciones', 'animales'], t => {
+            const os = {
+              eventos: t.objectStore('eventos'),
+              transacciones: t.objectStore('transacciones'),
+              animales: t.objectStore('animales'),
+            };
+            batchEvs.forEach(ev => {
+              os.eventos.delete(ev.id);
+              if (ev.transaccionId) os.transacciones.delete(ev.transaccionId);
+            });
+            animalUpdates.forEach(r => os.animales.put(r));
+          });
+
           showToast(`Lote de ${batchEvs.length} eventos eliminado`);
           loadEventos(container);
         });
@@ -340,72 +354,90 @@ async function renderBatchEditForm(slot, events, allAnimales, onSave) {
     const descripcion = slot.querySelector('#bef-desc').value.trim() || null;
 
     const freshAnimales = await getAll('animales');
-
-    // First pass: delete removed events and their transactions
-    for (const ev of events) {
-      if (!toRemove.has(ev.id)) continue;
-      await remove('eventos', ev.id);
-      if (ev.transaccionId) await remove('transacciones', ev.transaccionId);
-      if ((ev.tipo === 'venta' || ev.tipo === 'muerte') && ev.animalId) {
-        const anim = freshAnimales.find(a => a.id === ev.animalId);
-        const expectedStatus = ev.tipo === 'venta' ? 'vendido' : 'muerto';
-        if (anim && anim.status === expectedStatus) {
-          await put('animales', { ...anim, status: 'activo', updatedAt: new Date().toISOString() });
-        }
-      }
-    }
+    const now = new Date().toISOString();
 
     const remaining = events.filter(ev => !toRemove.has(ev.id));
+    const removed = events.filter(ev => toRemove.has(ev.id));
 
-    // Delete all existing transactions from remaining events (will recreate one)
-    for (const ev of remaining) {
-      if (ev.transaccionId) await remove('transacciones', ev.transaccionId);
-    }
+    // Animales a "revertir" porque su evento de venta/muerte se elimina del lote.
+    const animalReverts = removed
+      .filter(ev => (ev.tipo === 'venta' || ev.tipo === 'muerte') && ev.animalId)
+      .map(ev => {
+        const anim = freshAnimales.find(a => a.id === ev.animalId);
+        const expectedStatus = ev.tipo === 'venta' ? 'vendido' : 'muerto';
+        return (anim && anim.status === expectedStatus)
+          ? { ...anim, status: 'activo', updatedAt: now }
+          : null;
+      })
+      .filter(Boolean);
 
-    // Create ONE transaction for the total lot amount
+    // Nueva transacción agregada para el lote.
     const remainingAnimals = remaining.map(ev => freshAnimales.find(a => a.id === ev.animalId));
     const batchTitularIdSet = new Set(remainingAnimals.map(a => a?.titularId ?? null));
     const batchTitularId = batchTitularIdSet.size === 1 ? [...batchTitularIdSet][0] : null;
 
-    let batchTransaccionId = null;
-    if ((tipo === 'venta' || tipo === 'compra') && importe && remaining.length > 0) {
-      batchTransaccionId = uid();
-      const firstAnim = remainingAnimals[0];
-      await put('transacciones', {
-        id: batchTransaccionId,
-        tipo: tipo === 'venta' ? 'ingreso' : 'gasto',
-        importe,
-        fecha: fechaISO,
-        categoriaId: tipo === 'venta' ? 'sys-venta-animales' : 'sys-compra-animales',
-        descripcion: `${tipo === 'venta' ? 'Venta' : 'Compra'} lote: ${remaining.length} animales`,
-        referencia: null,
-        explotacionId: firstAnim?.explotacionId ?? null,
-        titularId: batchTitularId,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
-    }
+    const newTransaccion = ((tipo === 'venta' || tipo === 'compra') && importe && remaining.length > 0)
+      ? {
+          id: uid(),
+          tipo: tipo === 'venta' ? 'ingreso' : 'gasto',
+          importe,
+          fecha: fechaISO,
+          categoriaId: tipo === 'venta' ? 'sys-venta-animales' : 'sys-compra-animales',
+          descripcion: `${tipo === 'venta' ? 'Venta' : 'Compra'} lote: ${remaining.length} animales`,
+          referencia: null,
+          explotacionId: remainingAnimals[0]?.explotacionId ?? null,
+          titularId: batchTitularId,
+          createdAt: now,
+          updatedAt: now,
+        }
+      : null;
 
     const importePerAnimal = importe && remaining.length > 0 ? importe / remaining.length : null;
 
-    // Second pass: update remaining events
-    for (let i = 0; i < remaining.length; i++) {
-      const ev = remaining[i];
-      const anim = freshAnimales.find(a => a.id === ev.animalId);
-      const transaccionId = i === 0 ? batchTransaccionId : null;
+    const eventoUpdates = remaining.map((ev, i) => ({
+      ...ev,
+      tipo, fecha: fechaISO, descripcion, peso,
+      importe: importePerAnimal,
+      contraparte,
+      transaccionId: i === 0 && newTransaccion ? newTransaccion.id : null,
+      updatedAt: now,
+    }));
 
-      await put('eventos', { ...ev, tipo, fecha: fechaISO, descripcion, peso, importe: importePerAnimal, contraparte, transaccionId, updatedAt: new Date().toISOString() });
+    const animalUpdates = remaining
+      .map(ev => {
+        const anim = freshAnimales.find(a => a.id === ev.animalId);
+        if (!anim) return null;
+        if (tipo === 'peso' && peso) return { ...anim, currentWeight: peso, weightDate: fechaISO, updatedAt: now };
+        if (tipo === 'venta') return { ...anim, status: 'vendido', updatedAt: now };
+        if (tipo === 'muerte') return { ...anim, status: 'muerto', updatedAt: now };
+        return null;
+      })
+      .filter(Boolean);
 
-      if (anim) {
-        if (tipo === 'peso' && peso) {
-          await put('animales', { ...anim, currentWeight: peso, weightDate: fechaISO, updatedAt: new Date().toISOString() });
-        } else if (tipo === 'venta') {
-          await put('animales', { ...anim, status: 'vendido', updatedAt: new Date().toISOString() });
-        } else if (tipo === 'muerte') {
-          await put('animales', { ...anim, status: 'muerto', updatedAt: new Date().toISOString() });
-        }
-      }
-    }
+    // Transacciones a borrar: las viejas vinculadas a eventos eliminados + las viejas de remaining (se recrea una agregada).
+    const txIdsToDelete = [
+      ...removed.filter(ev => ev.transaccionId).map(ev => ev.transaccionId),
+      ...remaining.filter(ev => ev.transaccionId).map(ev => ev.transaccionId),
+    ];
+
+    await batch(['eventos', 'transacciones', 'animales'], t => {
+      const os = {
+        eventos: t.objectStore('eventos'),
+        transacciones: t.objectStore('transacciones'),
+        animales: t.objectStore('animales'),
+      };
+      // Borrar eventos quitados del lote
+      removed.forEach(ev => os.eventos.delete(ev.id));
+      // Borrar todas las tx vinculadas al lote (se recrea una)
+      txIdsToDelete.forEach(id => os.transacciones.delete(id));
+      // Crear transacción agregada nueva si aplica
+      if (newTransaccion) os.transacciones.put(newTransaccion);
+      // Actualizar eventos restantes
+      eventoUpdates.forEach(r => os.eventos.put(r));
+      // Animales (reverts de quitados + updates de remaining)
+      animalReverts.forEach(r => os.animales.put(r));
+      animalUpdates.forEach(r => os.animales.put(r));
+    });
 
     showToast('Lote actualizado');
     onSave();

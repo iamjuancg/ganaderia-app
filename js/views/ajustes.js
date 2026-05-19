@@ -3,7 +3,7 @@ import { uid, escapeHtml, CATEGORIAS_DEFECTO, downloadFile, csvRow, formatEur } 
 import { formatDate } from '../utils/date.js';
 import { showToast } from '../utils/toast.js';
 import { openModal, confirmModal } from '../utils/modal.js';
-import { updateExplotacionName } from '../utils/appstate.js';
+import { updateExplotacionName, invalidateTitularesCache, invalidateExplotacionesCache, invalidateAllCache } from '../utils/appstate.js';
 import {
   gdriveIsConfigured, gdriveIsAuthenticated, gdriveHasSavedConnection,
   gdriveGetLastSync, gdriveSignIn, gdriveSignInSilent, gdriveSignOut,
@@ -259,6 +259,7 @@ export async function renderAjustes(container) {
       const idx = explotaciones.findIndex(e => e.id === explot.id);
       const updated = { ...explot, nombre, tamano, rentaAnual };
       await put('explotaciones', updated);
+      invalidateExplotacionesCache();
       if (idx !== -1) explotaciones[idx] = updated;
       overlay.remove();
       renderExplots();
@@ -315,6 +316,7 @@ export async function renderAjustes(container) {
         if (afAnimales.length === 0 && afTx.length === 0) {
           confirmModal(`¿Eliminar la explotación <strong>${escapeHtml(explot.nombre)}</strong>?`, async () => {
             await remove('explotaciones', id);
+            invalidateExplotacionesCache();
             explotaciones.splice(idx, 1);
             renderExplots();
             showToast('Explotación eliminada');
@@ -397,6 +399,7 @@ export async function renderAjustes(container) {
           }
 
           await remove('explotaciones', id);
+          invalidateExplotacionesCache();
           explotaciones.splice(idx, 1);
           renderExplots();
           showToast('Explotación eliminada');
@@ -570,6 +573,7 @@ export async function renderAjustes(container) {
       const rentaAnual = rentaVal !== '' ? Number(rentaVal) : null;
       const nueva = { id: uid(), nombre, tamano, rentaAnual };
       await put('explotaciones', nueva);
+      invalidateExplotacionesCache();
       explotaciones.push(nueva);
       overlay.remove();
       renderExplots();
@@ -602,6 +606,7 @@ export async function renderAjustes(container) {
       const nif = overlay.querySelector('#ti-nif').value.trim() || null;
       const record = { id: tit?.id ?? uid(), nombre, nif, createdAt: tit?.createdAt ?? new Date().toISOString() };
       await put('titulares', record);
+      invalidateTitularesCache();
       const idx = titulares.findIndex(t => t.id === record.id);
       if (idx !== -1) titulares[idx] = record; else titulares.push(record);
       overlay.remove();
@@ -645,6 +650,7 @@ export async function renderAjustes(container) {
         if (afAnimales.length === 0 && afTx.length === 0) {
           confirmModal(`¿Eliminar el titular <strong>${escapeHtml(tit.nombre)}</strong>?`, async () => {
             await remove('titulares', id);
+            invalidateTitularesCache();
             titulares.splice(titulares.findIndex(t => t.id === id), 1);
             renderTitulares();
             showToast('Titular eliminado');
@@ -703,6 +709,7 @@ export async function renderAjustes(container) {
             ]);
           }
           await remove('titulares', id);
+          invalidateTitularesCache();
           titulares.splice(titulares.findIndex(t => t.id === id), 1);
           renderTitulares();
           showToast('Titular eliminado');
@@ -795,6 +802,7 @@ export async function renderAjustes(container) {
     const counts = `Animales: ${data.animales?.length ?? 0}, Eventos: ${data.eventos?.length ?? 0}, Transacciones: ${data.transacciones?.length ?? 0}`;
     confirmModal(`¿Importar backup? Se combinarán con los datos actuales.<br><small>${counts}</small>`, async () => {
       await importAll(data);
+      invalidateAllCache();
       showToast('Backup importado correctamente');
     }, false);
     e.target.value = '';
@@ -816,7 +824,7 @@ export async function renderAjustes(container) {
         const fileInfo = await gdriveGetFileInfo();
         if (fileInfo) {
           const result = await gdriveDownload();
-          if (result) await replaceAll(result.data);
+          if (result) { await replaceAll(result.data); invalidateAllCache(); }
           showToast('Conectado. Datos descargados de Drive');
         } else {
           const data = await exportAll();
@@ -840,7 +848,7 @@ export async function renderAjustes(container) {
             const lastSync = gdriveGetLastSync();
             if (!lastSync || new Date(fileInfo.modifiedTime) > new Date(lastSync)) {
               const result = await gdriveDownload();
-              if (result) await replaceAll(result.data);
+              if (result) { await replaceAll(result.data); invalidateAllCache(); }
             } else {
               await gdriveUpload(await exportAll());
             }
@@ -873,6 +881,7 @@ export async function renderAjustes(container) {
           const result = await gdriveDownload();
           if (!result) { showToast('No hay backup en Drive', 'error'); return; }
           await replaceAll(result.data);
+          invalidateAllCache();
           const nAnimales = result.data.animales?.length ?? 0;
           const nTx = result.data.transacciones?.length ?? 0;
           showToast(`Drive: ${nAnimales} animales, ${nTx} transacciones`);
@@ -900,6 +909,7 @@ export async function renderAjustes(container) {
     confirmModal('⚠ ¿Estás seguro? Se borrarán TODOS los datos permanentemente.', () => {
       confirmModal('Esta es la segunda confirmación. ¿Confirmas el borrado total?', async () => {
         await clearAllStores();
+        invalidateAllCache();
         showToast('Todos los datos han sido eliminados');
         renderAjustes(container);
       });

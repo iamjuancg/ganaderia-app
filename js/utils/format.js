@@ -73,3 +73,12 @@ export function downloadFile(content, filename, mimeType) {
 export function csvRow(fields) {
   return fields.map(f => `"${String(f ?? '').replace(/"/g, '""')}"`).join(',');
 }
+
+// Debounce: agrupa llamadas seguidas dentro de `wait` ms; solo dispara la última.
+export function debounce(fn, wait = 150) {
+  let timer = null;
+  return function (...args) {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => { timer = null; fn.apply(this, args); }, wait);
+  };
+}

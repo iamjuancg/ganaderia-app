@@ -1,8 +1,8 @@
-import { getAll } from '../db/database.js';
+import { getAll, getByRange } from '../db/database.js';
 import { formatEur, escapeHtml } from '../utils/format.js';
 import { currentYear, getYear } from '../utils/date.js';
 import { buildDropdown, initDropdownCloser } from '../utils/dropdown.js';
-import { getActiveTitularId, setActiveTitularId, renderTitularFilter, titularMatcher } from '../utils/appstate.js';
+import { getActiveTitularId, setActiveTitularId, renderTitularFilter, titularMatcher, getCachedTitulares, getCachedExplotaciones } from '../utils/appstate.js';
 
 let selectedYear = currentYear();
 let filterExplotaciones = new Set();
@@ -60,8 +60,13 @@ export async function renderInformes(container) {
 
 
 async function loadInformes(container) {
+  // Rango "amplio" para tolerar fronteras de TZ; getYear() afina después.
+  const yearRangeFrom = `${selectedYear - 1}-12-31`;
+  const yearRangeTo = `${selectedYear + 1}-01-01`;
   const [animales, transacciones, categorias, explotaciones, titulares] = await Promise.all([
-    getAll('animales'), getAll('transacciones'), getAll('categorias'), getAll('explotaciones'), getAll('titulares')
+    getAll('animales'),
+    getByRange('transacciones', 'fecha', yearRangeFrom, yearRangeTo),
+    getAll('categorias'), getCachedExplotaciones(), getCachedTitulares()
   ]);
   const catMap = Object.fromEntries(categorias.map(c => [c.id, c]));
   const catIngresos = categorias.filter(c => c.tipo === 'ingreso');
