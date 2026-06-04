@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ganaderia-v30';
+const CACHE_NAME = 'ganaderia-v31';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -8,6 +8,7 @@ const STATIC_ASSETS = [
   './js/version.js',
   './js/db/database.js',
   './js/db/seed.js',
+  './js/db/import-sitran.js',
   './js/utils/appstate.js',
   './js/utils/date.js',
   './js/utils/dropdown.js',
