@@ -258,6 +258,13 @@ export async function renderAjustes(container) {
             <label class="form-label">Renta anual <span class="text-muted" style="font-weight:normal;">(€)</span></label>
             <input type="number" inputmode="decimal" class="form-control" id="ee-renta" min="0" step="0.01" value="${explot.rentaAnual ?? ''}" placeholder="0.00">
           </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Titular <span class="text-muted" style="font-weight:normal;">(opcional)</span></label>
+          <select class="form-control" id="ee-titular">
+            <option value="">— Sin titular —</option>
+            ${titulares.map(t => `<option value="${t.id}" ${explot.titularId === t.id ? 'selected' : ''}>${escapeHtml(t.nombre)}</option>`).join('')}
+          </select>
         </div>`,
       footerHtml: `
         <button class="btn btn-secondary" id="ee-cancel">Cancelar</button>
@@ -271,8 +278,9 @@ export async function renderAjustes(container) {
       const tamano = tamanoVal !== '' ? Number(tamanoVal) : null;
       const rentaVal = overlay.querySelector('#ee-renta').value;
       const rentaAnual = rentaVal !== '' && rentaVal !== null ? Number(rentaVal) : null;
+      const titularId = overlay.querySelector('#ee-titular').value || null;
       const idx = explotaciones.findIndex(e => e.id === explot.id);
-      const updated = { ...explot, nombre, tamano, rentaAnual };
+      const updated = { ...explot, nombre, tamano, rentaAnual, titularId };
       await put('explotaciones', updated);
       invalidateExplotacionesCache();
       if (idx !== -1) explotaciones[idx] = updated;
@@ -287,10 +295,13 @@ export async function renderAjustes(container) {
     if (explotaciones.length === 0) {
       list.innerHTML = `<div class="empty-state" style="padding:20px;"><p>Sin explotaciones creadas. Añade una para poder asignar animales a cada una.</p></div>`;
     } else {
+      const titularMap = new Map(titulares.map(t => [t.id, t.nombre]));
       const totalHa = explotaciones.reduce((s, e) => s + (parseFloat(e.tamano) || 0), 0);
       const totalRenta = explotaciones.reduce((s, e) => s + (e.rentaAnual || 0), 0);
       const filas = explotaciones.map(e => {
+        const titNombre = e.titularId ? titularMap.get(e.titularId) : null;
         const extras = [
+          titNombre ? `<span class="text-muted text-small">👤 ${escapeHtml(titNombre)}</span>` : '',
           e.tamano != null && e.tamano !== '' ? `<span class="text-muted text-small">📐 ${parseFloat(e.tamano)} ha</span>` : '',
           e.rentaAnual != null ? `<span class="text-muted text-small">💶 ${formatEur(e.rentaAnual)}/año</span>` : '',
         ].filter(Boolean).join(' &nbsp;');
@@ -572,6 +583,13 @@ export async function renderAjustes(container) {
             <label class="form-label">Renta anual <span class="text-muted" style="font-weight:normal;">(opcional, €)</span></label>
             <input type="number" inputmode="decimal" class="form-control" id="en-renta" min="0" step="0.01" placeholder="0.00">
           </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Titular <span class="text-muted" style="font-weight:normal;">(opcional)</span></label>
+          <select class="form-control" id="en-titular">
+            <option value="">— Sin titular —</option>
+            ${titulares.map(t => `<option value="${t.id}">${escapeHtml(t.nombre)}</option>`).join('')}
+          </select>
         </div>`,
       footerHtml: `
         <button class="btn btn-secondary" id="en-cancel">Cancelar</button>
@@ -586,7 +604,8 @@ export async function renderAjustes(container) {
       const tamano = tamanoVal !== '' ? Number(tamanoVal) : null;
       const rentaVal = overlay.querySelector('#en-renta').value;
       const rentaAnual = rentaVal !== '' ? Number(rentaVal) : null;
-      const nueva = { id: uid(), nombre, tamano, rentaAnual };
+      const titularId = overlay.querySelector('#en-titular').value || null;
+      const nueva = { id: uid(), nombre, tamano, rentaAnual, titularId };
       await put('explotaciones', nueva);
       invalidateExplotacionesCache();
       explotaciones.push(nueva);
