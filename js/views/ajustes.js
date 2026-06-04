@@ -1,4 +1,5 @@
 import { getAll, put, remove, getSetting, setSetting, clearAllStores, exportAll, importAll, replaceAll } from '../db/database.js';
+import { parseSitranXml, resumirSitran, importarSitran } from '../db/import-sitran.js';
 import { uid, escapeHtml, CATEGORIAS_DEFECTO, downloadFile, csvRow, formatEur } from '../utils/format.js';
 import { formatDate } from '../utils/date.js';
 import { showToast } from '../utils/toast.js';
@@ -137,6 +138,11 @@ export async function renderAjustes(container) {
         <div>
           <label class="form-label">Restaurar backup JSON</label>
           <input type="file" class="form-control" id="import-json" accept=".json" style="padding:8px;">
+        </div>
+        <div>
+          <label class="form-label">Importar registro oficial SITRAN (XML)</label>
+          <input type="file" class="form-control" id="import-sitran" accept=".xml,application/xml,text/xml" style="padding:8px;">
+          <div class="text-muted text-small" style="margin-top:4px;">Sube el "Libro de Registro de Animales" que descargaste de la web de tu comunidad autónoma. Los animales con un crotal que ya esté en la base se omiten.</div>
         </div>
       </div>
     </div>
@@ -813,6 +819,44 @@ export async function renderAjustes(container) {
       await importAll(data);
       invalidateAllCache();
       showToast('Backup importado correctamente');
+    }, false);
+    e.target.value = '';
+  });
+
+  // Importar XML del SITRAN
+  container.querySelector('#import-sitran').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const text = await file.text();
+    let parsed;
+    try { parsed = parseSitranXml(text); }
+    catch (err) { showToast(err.message || 'XML no válido', 'error'); e.target.value = ''; return; }
+
+    const resumen = await resumirSitran(parsed);
+    if (resumen.nuevos === 0) {
+      showToast(
+        resumen.duplicados > 0
+          ? `Todos los animales del XML (${resumen.duplicados}) ya están en la base`
+          : 'El XML no contiene animales que importar',
+        'error',
+      );
+      e.target.value = '';
+      return;
+    }
+
+    const lineas = [
+      `${resumen.nuevos} animales nuevos a crear`,
+      resumen.duplicados > 0 ? `${resumen.duplicados} ya existen y se omitirán` : null,
+      `${resumen.regas} explotación(es) referenciadas`,
+    ].filter(Boolean).join('<br>');
+
+    confirmModal(`¿Importar el registro oficial?<br><small>${lineas}</small>`, async () => {
+      const r = await importarSitran(parsed);
+      invalidateAllCache();
+      let msg = `Importado: ${r.animales} animales, ${r.eventos} eventos`;
+      if (r.explotacionesCreadas > 0) msg += `, ${r.explotacionesCreadas} explotación(es) creada(s)`;
+      if (r.duplicadosOmitidos > 0) msg += ` · ${r.duplicadosOmitidos} omitidos`;
+      showToast(msg);
     }, false);
     e.target.value = '';
   });
