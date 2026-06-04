@@ -1,4 +1,4 @@
-import { getAll, put, remove, getSetting, setSetting, clearAllStores, exportAll, importAll, replaceAll } from '../db/database.js';
+import { getAll, put, remove, batch, getSetting, setSetting, clearAllStores, exportAll, importAll, replaceAll } from '../db/database.js';
 import { parseSitranXml, resumirSitran, importarSitran } from '../db/import-sitran.js';
 import { uid, escapeHtml, CATEGORIAS_DEFECTO, downloadFile, csvRow, formatEur } from '../utils/format.js';
 import { formatDate } from '../utils/date.js';
@@ -317,8 +317,44 @@ export async function renderAjustes(container) {
       const haItem = totalHa > 0 ? `<div class="summary-item"><div class="summary-label">Hectáreas totales</div><div class="summary-value">${totalHa} ha</div></div>` : '';
       const rentaItem = totalRenta > 0 ? `<div class="summary-item"><div class="summary-label">Renta total/año</div><div class="summary-value income">${formatEur(totalRenta)}</div></div>` : '';
       const totales = (totalHa > 0 || totalRenta > 0) ? `<div class="summary-bar" style="margin-top:8px;margin-bottom:0;">${haItem}${rentaItem}</div>` : '';
-      list.innerHTML = filas + totales;
+      const tienenTitular = explotaciones.some(e => e.titularId);
+      const sincronizar = tienenTitular ? `
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--color-border);">
+          <button class="btn btn-sm btn-secondary" id="explot-sync-tit">🔄 Asignar titular a animales según explotación</button>
+          <div class="text-muted text-small" style="margin-top:4px;">Rellena el titular de los animales que no tengan uno asignado, usando el de su explotación.</div>
+        </div>` : '';
+      list.innerHTML = filas + totales + sincronizar;
     }
+    list.querySelector('#explot-sync-tit')?.addEventListener('click', async () => {
+      const animales = await getAll('animales');
+      const explotsByID = new Map(explotaciones.map(e => [e.id, e]));
+      const aActualizar = animales.filter(a =>
+        !a.titularId && a.explotacionId && explotsByID.get(a.explotacionId)?.titularId
+      );
+      if (aActualizar.length === 0) {
+        showToast('No hay animales sin titular en explotaciones con titular', 'error');
+        return;
+      }
+      const n = aActualizar.length;
+      const plural = n === 1 ? '' : 'es';
+      confirmModal(
+        `¿Asignar titular a ${n} animal${plural} según su explotación?<br><small>No se modifica ningún animal que ya tenga titular.</small>`,
+        async () => {
+          const now = new Date().toISOString();
+          const updates = aActualizar.map(a => ({
+            ...a,
+            titularId: explotsByID.get(a.explotacionId).titularId,
+            updatedAt: now,
+          }));
+          await batch(['animales'], t => {
+            for (const u of updates) t.objectStore('animales').put(u);
+          });
+          invalidateAllCache();
+          showToast(`${n} animal${plural} actualizado${plural ? 's' : ''}`);
+        },
+        false,
+      );
+    });
     list.querySelectorAll('[data-explodit]').forEach(btn => {
       btn.addEventListener('click', () => {
         const explot = explotaciones.find(e => e.id === btn.dataset.explodit);
